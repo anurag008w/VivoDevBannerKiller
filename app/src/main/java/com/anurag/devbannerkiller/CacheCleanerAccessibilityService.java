@@ -45,12 +45,20 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
 
     private final Handler mHandler = new Handler(Looper.getMainLooper());
 
-    private static final long APP_WATCHDOG_TIMEOUT = 3500; // 3.5s watchdog per app
-    private static final long STORAGE_WAIT_TIMEOUT = 2500; // 2.5s waiting for storage page
+    private static final long APP_WATCHDOG_TIMEOUT = 5000; // 5s watchdog per app
+    private static final long STORAGE_WAIT_TIMEOUT = 3500; // 3.5s waiting for storage page
 
     private final Runnable mWatchdogRunnable = () -> {
         if (mIsCleaning && mCurrentStep != Step.IDLE) {
             Log.w(TAG, "Watchdog timeout for " + mCurrentPackage + ", advancing to next app.");
+            advanceToNextApp();
+        }
+    };
+
+    // If cache button remains disabled for 900ms after opening Storage, cache is genuinely 0B
+    private final Runnable mZeroCacheFallbackRunnable = () -> {
+        if (mIsCleaning && mCurrentStep == Step.LOOKING_FOR_CLEAR_CACHE) {
+            Log.d(TAG, "Cache button remained disabled (already 0 B) for " + mCurrentPackage + ", advancing.");
             advanceToNextApp();
         }
     };
@@ -103,6 +111,7 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
 
     private synchronized void processNextApp() {
         mHandler.removeCallbacks(mWatchdogRunnable);
+        mHandler.removeCallbacks(mZeroCacheFallbackRunnable);
 
         if (!mIsCleaning) {
             mCurrentStep = Step.IDLE;
@@ -115,12 +124,11 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
         }
 
         mCurrentPackage = mPackageQueue.poll();
-        mCurrentAppName = getAppName(mCurrentPackage);
         mCurrentStep = Step.LOOKING_FOR_STORAGE;
         mAppLaunchTime = System.currentTimeMillis();
 
         int currentIdx = mTotalToClean - mPackageQueue.size();
-        Log.d(TAG, "[" + currentIdx + "/" + mTotalToClean + "] Opening settings for: " + mCurrentPackage + " (" + mCurrentAppName + ")");
+        Log.d(TAG, "[" + currentIdx + "/" + mTotalToClean + "] Opening settings for: " + mCurrentPackage);
 
         // Arm watchdog
         mHandler.postDelayed(mWatchdogRunnable, APP_WATCHDOG_TIMEOUT);
@@ -139,12 +147,10 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
     private synchronized void advanceToNextApp() {
         mCurrentStep = Step.ADVANCING;
         mHandler.removeCallbacks(mWatchdogRunnable);
+        mHandler.removeCallbacks(mZeroCacheFallbackRunnable);
 
-        // Press BACK once to dismiss Storage screen (VivoSubSettings)
-        performGlobalAction(GLOBAL_ACTION_BACK);
-
-        // Wait 250ms for back animation, then launch next app
-        mHandler.postDelayed(this::processNextApp, 250);
+        // Directly launch next app without back key delay/race condition
+        mHandler.postDelayed(this::processNextApp, 200);
     }
 
     private void finishCleaning() {
@@ -172,17 +178,11 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
         AccessibilityNodeInfo root = getSettingsRoot(event);
         if (root == null) return;
 
-        // Step 1: In LOOKING_FOR_STORAGE, verify window belongs to current app and click Storage
+        // Step 1: In LOOKING_FOR_STORAGE, find and click "Storage"
         if (mCurrentStep == Step.LOOKING_FOR_STORAGE) {
             long elapsedSinceLaunch = System.currentTimeMillis() - mAppLaunchTime;
-
-            // Ensure previous window has closed (at least 200ms or current app name is on screen)
-            if (mCurrentAppName != null && !mCurrentAppName.isEmpty()) {
-                if (!rootContainsText(root, mCurrentAppName) && elapsedSinceLaunch < 1000) {
-                    // Screen has not updated to the new app yet, ignore old window event
-                    return;
-                }
-            } else if (elapsedSinceLaunch < 200) {
+            if (elapsedSinceLaunch < 150) {
+                // Allow brief transition window
                 return;
             }
 
@@ -192,25 +192,33 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
                 mCurrentStep = Step.LOOKING_FOR_CLEAR_CACHE;
                 clickNode(storageNode);
 
-                // Re-arm watchdog for storage page load
+                // Arm watchdog for storage page load
                 mHandler.removeCallbacks(mWatchdogRunnable);
                 mHandler.postDelayed(mWatchdogRunnable, STORAGE_WAIT_TIMEOUT);
+
+                // Start 0B fallback timer (900ms) to allow cache calculation
+                mHandler.removeCallbacks(mZeroCacheFallbackRunnable);
+                mHandler.postDelayed(mZeroCacheFallbackRunnable, 900);
             }
             return;
         }
 
-        // Step 2: In LOOKING_FOR_CLEAR_CACHE, find and click "Clear Cache" button
+        // Step 2: In LOOKING_FOR_CLEAR_CACHE, wait for button to enable, then click
         if (mCurrentStep == Step.LOOKING_FOR_CLEAR_CACHE) {
             AccessibilityNodeInfo clearCacheNode = findClearCacheNode(root);
             if (clearCacheNode != null) {
                 if (clearCacheNode.isEnabled()) {
+                    // Cache calculation finished and button is active: clear it!
                     Log.d(TAG, "Clicking 'Clear Cache' for: " + mCurrentPackage);
+                    mHandler.removeCallbacks(mZeroCacheFallbackRunnable);
                     clickNode(clearCacheNode);
                     mCleanedCount++;
+                    advanceToNextApp();
                 } else {
-                    Log.d(TAG, "Cache already 0 B for: " + mCurrentPackage);
+                    // Button is present but disabled.
+                    // Keep waiting; if it enables once calculated, the event above triggers.
+                    // If it stays disabled for 900ms, mZeroCacheFallbackRunnable advances.
                 }
-                advanceToNextApp();
             }
         }
     }
