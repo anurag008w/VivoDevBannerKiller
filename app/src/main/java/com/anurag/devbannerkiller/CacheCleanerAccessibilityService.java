@@ -1,15 +1,19 @@
 package com.anurag.devbannerkiller;
 
 import android.accessibilityservice.AccessibilityService;
-import android.content.Context;
+import android.accessibilityservice.GestureDescription;
 import android.content.Intent;
+import android.graphics.Path;
+import android.graphics.Rect;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.Toast;
 
 import java.util.LinkedList;
@@ -21,12 +25,38 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
     private static final String TAG = "CacheCleanerAcc";
     private static CacheCleanerAccessibilityService sInstance;
 
+    private enum Step {
+        IDLE,
+        LOOKING_FOR_STORAGE,
+        LOOKING_FOR_CLEAR_CACHE,
+        ADVANCING
+    }
+
     private final Queue<String> mPackageQueue = new LinkedList<>();
     private boolean mIsCleaning = false;
+    private Step mCurrentStep = Step.IDLE;
+    private String mCurrentPackage = null;
     private int mTotalToClean = 0;
     private int mCleanedCount = 0;
-    private boolean mHasClickedStorage = false;
+
     private final Handler mHandler = new Handler(Looper.getMainLooper());
+
+    private static final long APP_WATCHDOG_TIMEOUT = 3500; // 3.5s watchdog per app
+    private static final long STORAGE_WAIT_TIMEOUT = 2500; // 2.5s waiting for storage page
+
+    private final Runnable mWatchdogRunnable = () -> {
+        if (mIsCleaning && mCurrentStep != Step.IDLE) {
+            Log.w(TAG, "Watchdog timeout on " + mCurrentPackage + ", advancing to next app.");
+            advanceToNextApp(0);
+        }
+    };
+
+    private final Runnable mDisabledCacheCheckRunnable = () -> {
+        if (mIsCleaning && mCurrentStep == Step.LOOKING_FOR_CLEAR_CACHE) {
+            Log.d(TAG, "Cache button remained disabled (already 0 B) for " + mCurrentPackage);
+            advanceToNextApp(150);
+        }
+    };
 
     public static CacheCleanerAccessibilityService getInstance() {
         return sInstance;
@@ -48,15 +78,20 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
         super.onDestroy();
         sInstance = null;
         mIsCleaning = false;
+        mCurrentStep = Step.IDLE;
+        mHandler.removeCallbacksAndMessages(null);
         Log.d(TAG, "CacheCleanerAccessibilityService destroyed");
     }
 
     @Override
     public void onInterrupt() {
+        Log.d(TAG, "CacheCleanerAccessibilityService interrupted");
         mIsCleaning = false;
+        mCurrentStep = Step.IDLE;
+        mHandler.removeCallbacksAndMessages(null);
     }
 
-    public void startCleaning(List<String> packages) {
+    public synchronized void startCleaning(List<String> packages) {
         if (packages == null || packages.isEmpty()) return;
 
         mPackageQueue.clear();
@@ -64,129 +99,238 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
         mTotalToClean = packages.size();
         mCleanedCount = 0;
         mIsCleaning = true;
-        mHasClickedStorage = false;
 
         Toast.makeText(this, "Starting automated cache cleaner for " + mTotalToClean + " apps...", Toast.LENGTH_SHORT).show();
         processNextApp();
     }
 
-    private void processNextApp() {
-        if (!mIsCleaning) return;
+    private synchronized void processNextApp() {
+        mHandler.removeCallbacks(mWatchdogRunnable);
+        mHandler.removeCallbacks(mDisabledCacheCheckRunnable);
 
-        if (mPackageQueue.isEmpty()) {
-            mIsCleaning = false;
-            Toast.makeText(this, "🎉 Completed! Cache cleared for " + mCleanedCount + " apps.", Toast.LENGTH_LONG).show();
-
-            // Return to our app
-            Intent intent = new Intent(this, MainActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-            startActivity(intent);
+        if (!mIsCleaning) {
+            mCurrentStep = Step.IDLE;
             return;
         }
 
-        String nextPkg = mPackageQueue.poll();
-        mHasClickedStorage = false;
+        if (mPackageQueue.isEmpty()) {
+            finishCleaning();
+            return;
+        }
+
+        mCurrentPackage = mPackageQueue.poll();
+        mCurrentStep = Step.LOOKING_FOR_STORAGE;
+
+        int currentIdx = mTotalToClean - mPackageQueue.size();
+        Log.d(TAG, "[" + currentIdx + "/" + mTotalToClean + "] Processing app: " + mCurrentPackage);
+
+        // Arm watchdog
+        mHandler.postDelayed(mWatchdogRunnable, APP_WATCHDOG_TIMEOUT);
 
         try {
             Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-            intent.setData(Uri.parse("package:" + nextPkg));
+            intent.setData(Uri.parse("package:" + mCurrentPackage));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(intent);
         } catch (Exception e) {
-            Log.e(TAG, "Failed to open settings for " + nextPkg + ": " + e.getMessage());
+            Log.e(TAG, "Failed to launch settings for " + mCurrentPackage + ": " + e.getMessage());
+            advanceToNextApp(50);
+        }
+    }
+
+    private synchronized void advanceToNextApp(long delayMs) {
+        mCurrentStep = Step.ADVANCING;
+        mHandler.removeCallbacks(mWatchdogRunnable);
+        mHandler.removeCallbacks(mDisabledCacheCheckRunnable);
+
+        if (delayMs <= 0) {
             processNextApp();
+        } else {
+            mHandler.postDelayed(this::processNextApp, delayMs);
+        }
+    }
+
+    private void finishCleaning() {
+        mIsCleaning = false;
+        mCurrentStep = Step.IDLE;
+        mHandler.removeCallbacksAndMessages(null);
+
+        Toast.makeText(this, "🎉 Completed! Cleaned cache for " + mCleanedCount + " apps.", Toast.LENGTH_LONG).show();
+
+        try {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to return to MainActivity: " + e.getMessage());
         }
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (!mIsCleaning) return;
-
-        AccessibilityNodeInfo rootNode = getRootInActiveWindow();
-        if (rootNode == null) return;
-
-        // Step 1: Click "Storage" if we are in App Info page
-        if (!mHasClickedStorage) {
-            AccessibilityNodeInfo storageNode = findNodeByTextOrId(rootNode,
-                    new String[]{"storage", "स्टोरेज", "space"},
-                    new String[]{"storage_settings", "storage_size"});
-
-            if (storageNode != null) {
-                mHasClickedStorage = true;
-                performClick(storageNode);
-                return;
-            }
+        if (!mIsCleaning || mCurrentStep == Step.IDLE || mCurrentStep == Step.ADVANCING) {
+            return;
         }
 
-        // Step 2: Click "Clear Cache" once inside Storage page
-        AccessibilityNodeInfo clearCacheNode = findNodeByTextOrId(rootNode,
-                new String[]{"clear cache", "कैश साफ़ करें", "empty cache", "clean cache"},
-                new String[]{"clear_cache_button", "button_clear_cache", "clear_cache"});
+        AccessibilityNodeInfo root = getSettingsRoot(event);
+        if (root == null) return;
 
-        if (clearCacheNode != null && clearCacheNode.isEnabled()) {
-            performClick(clearCacheNode);
-            mCleanedCount++;
+        // Step 1: Check if "Clear cache" button is visible anywhere on current screen
+        AccessibilityNodeInfo clearCacheNode = findClearCacheNode(root);
+        if (clearCacheNode != null) {
+            if (clearCacheNode.isEnabled()) {
+                // Active cache button found: click it!
+                mCurrentStep = Step.ADVANCING;
+                mHandler.removeCallbacks(mWatchdogRunnable);
+                mHandler.removeCallbacks(mDisabledCacheCheckRunnable);
 
-            // Wait 250ms, then press BACK twice to go to next app
-            mHandler.postDelayed(() -> {
-                performGlobalAction(GLOBAL_ACTION_BACK);
-                mHandler.postDelayed(() -> {
-                    performGlobalAction(GLOBAL_ACTION_BACK);
-                    mHandler.postDelayed(this::processNextApp, 200);
-                }, 200);
-            }, 250);
+                Log.d(TAG, "Clicking 'Clear Cache' for: " + mCurrentPackage);
+                clickNode(clearCacheNode);
+                mCleanedCount++;
+                advanceToNextApp(350);
+            } else {
+                // Button found but disabled (0 B cache or measuring)
+                mHandler.removeCallbacks(mDisabledCacheCheckRunnable);
+                mHandler.postDelayed(mDisabledCacheCheckRunnable, 300);
+            }
+            return;
+        }
+
+        // Step 2: If we are on App Info, find & click "Storage"
+        if (mCurrentStep == Step.LOOKING_FOR_STORAGE) {
+            AccessibilityNodeInfo storageNode = findStorageNode(root);
+            if (storageNode != null) {
+                Log.d(TAG, "Clicking 'Storage' for: " + mCurrentPackage);
+                mCurrentStep = Step.LOOKING_FOR_CLEAR_CACHE;
+                clickNode(storageNode);
+
+                // Re-arm watchdog with STORAGE_WAIT_TIMEOUT
+                mHandler.removeCallbacks(mWatchdogRunnable);
+                mHandler.postDelayed(mWatchdogRunnable, STORAGE_WAIT_TIMEOUT);
+            }
         }
     }
 
-    private AccessibilityNodeInfo findNodeByTextOrId(AccessibilityNodeInfo root, String[] texts, String[] viewIds) {
+    private AccessibilityNodeInfo getSettingsRoot(AccessibilityEvent event) {
+        // 1. Check event source first
+        if (event != null) {
+            AccessibilityNodeInfo source = event.getSource();
+            if (source != null) {
+                if (isSettingsPackage(source.getPackageName())) {
+                    AccessibilityNodeInfo curr = source;
+                    while (curr.getParent() != null) {
+                        curr = curr.getParent();
+                    }
+                    return curr;
+                }
+            }
+        }
+
+        // 2. Check interactive windows
+        try {
+            List<AccessibilityWindowInfo> windows = getWindows();
+            if (windows != null) {
+                for (AccessibilityWindowInfo window : windows) {
+                    AccessibilityNodeInfo root = window.getRoot();
+                    if (root != null && isSettingsPackage(root.getPackageName())) {
+                        return root;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // 3. Fallback to active root window if it belongs to settings
+        AccessibilityNodeInfo activeRoot = getRootInActiveWindow();
+        if (activeRoot != null && isSettingsPackage(activeRoot.getPackageName())) {
+            return activeRoot;
+        }
+
+        return null;
+    }
+
+    private boolean isSettingsPackage(CharSequence pkg) {
+        if (pkg == null) return false;
+        String s = pkg.toString().toLowerCase();
+        return s.contains("settings");
+    }
+
+    // Identifiers and Texts for matching
+    private static final String[] CLEAR_CACHE_TEXTS = {
+            "clear cache", "empty cache", "clean cache", "wipe cache",
+            "कैश साफ़ करें", "कैश खाली करें", "कैश मिटाएं"
+    };
+
+    private static final String[] CLEAR_CACHE_IDS = {
+            "clear_cache_button", "button_clear_cache", "clear_cache"
+    };
+
+    private static final String[] STORAGE_TEXTS = {
+            "storage", "storage & cache", "space", "स्टोरेज", "मेमोरी"
+    };
+
+    private static final String[] STORAGE_IDS = {
+            "storage_settings", "storage_size", "storage"
+    };
+
+    private AccessibilityNodeInfo findClearCacheNode(AccessibilityNodeInfo root) {
         if (root == null) return null;
 
-        // Check view IDs first
-        for (String idPart : viewIds) {
+        for (String idPart : CLEAR_CACHE_IDS) {
             List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId("com.android.settings:id/" + idPart);
             if (nodes != null && !nodes.isEmpty()) {
                 for (AccessibilityNodeInfo n : nodes) {
-                    if (n.isEnabled()) return n;
+                    if (n != null) return n;
                 }
             }
         }
 
-        // Check text content
-        for (String text : texts) {
-            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(text);
+        return findNodeByTextFuzzy(root, CLEAR_CACHE_TEXTS);
+    }
+
+    private AccessibilityNodeInfo findStorageNode(AccessibilityNodeInfo root) {
+        if (root == null) return null;
+
+        for (String idPart : STORAGE_IDS) {
+            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId("com.android.settings:id/" + idPart);
             if (nodes != null && !nodes.isEmpty()) {
                 for (AccessibilityNodeInfo n : nodes) {
-                    if (n.isEnabled()) {
-                        // Find clickable parent if node itself is not clickable
-                        AccessibilityNodeInfo clickable = n;
-                        while (clickable != null && !clickable.isClickable()) {
-                            clickable = clickable.getParent();
-                        }
-                        return clickable != null ? clickable : n;
-                    }
+                    if (n != null) return n;
                 }
             }
         }
 
-        // Recursive search for nested text matches
-        int childCount = root.getChildCount();
-        for (int i = 0; i < childCount; i++) {
+        return findNodeByTextFuzzy(root, STORAGE_TEXTS);
+    }
+
+    private AccessibilityNodeInfo findNodeByTextFuzzy(AccessibilityNodeInfo root, String[] targetTexts) {
+        if (root == null) return null;
+
+        CharSequence text = root.getText();
+        CharSequence desc = root.getContentDescription();
+
+        if (text != null) {
+            String s = text.toString().toLowerCase().trim();
+            for (String target : targetTexts) {
+                if (s.contains(target)) {
+                    return root;
+                }
+            }
+        }
+
+        if (desc != null) {
+            String s = desc.toString().toLowerCase().trim();
+            for (String target : targetTexts) {
+                if (s.contains(target)) {
+                    return root;
+                }
+            }
+        }
+
+        int count = root.getChildCount();
+        for (int i = 0; i < count; i++) {
             AccessibilityNodeInfo child = root.getChild(i);
             if (child != null) {
-                CharSequence nodeText = child.getText();
-                if (nodeText != null) {
-                    String str = nodeText.toString().toLowerCase();
-                    for (String t : texts) {
-                        if (str.contains(t) && child.isEnabled()) {
-                            AccessibilityNodeInfo clickable = child;
-                            while (clickable != null && !clickable.isClickable()) {
-                                clickable = clickable.getParent();
-                            }
-                            return clickable != null ? clickable : child;
-                        }
-                    }
-                }
-                AccessibilityNodeInfo res = findNodeByTextOrId(child, texts, viewIds);
+                AccessibilityNodeInfo res = findNodeByTextFuzzy(child, targetTexts);
                 if (res != null) return res;
             }
         }
@@ -194,20 +338,43 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
         return null;
     }
 
-    private void performClick(AccessibilityNodeInfo node) {
+    private void clickNode(AccessibilityNodeInfo node) {
         if (node == null) return;
+
+        // 1. Direct click on node
         if (node.isClickable()) {
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-        } else {
-            AccessibilityNodeInfo parent = node.getParent();
-            while (parent != null) {
-                if (parent.isClickable()) {
-                    parent.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                return;
+            }
+        }
+
+        // 2. Clickable parent
+        AccessibilityNodeInfo parent = node.getParent();
+        while (parent != null) {
+            if (parent.isClickable()) {
+                if (parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                     return;
                 }
-                parent = parent.getParent();
             }
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            parent = parent.getParent();
+        }
+
+        // 3. Coordinate gesture fallback
+        Rect bounds = new Rect();
+        node.getBoundsInScreen(bounds);
+        if (bounds.width() > 0 && bounds.height() > 0) {
+            clickAt(bounds.centerX(), bounds.centerY());
+        }
+    }
+
+    private void clickAt(int x, int y) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            Path path = new Path();
+            path.moveTo(x, y);
+            GestureDescription.Builder builder = new GestureDescription.Builder();
+            builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 50));
+            dispatchGesture(builder.build(), null, null);
         }
     }
 }
+

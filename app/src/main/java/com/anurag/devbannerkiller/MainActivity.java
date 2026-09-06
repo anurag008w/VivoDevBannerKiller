@@ -304,12 +304,17 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     }
 
     private boolean isAccessibilityServiceEnabled() {
-        String expectedComponentName = new ComponentName(this, CacheCleanerAccessibilityService.class).flattenToString();
+        if (CacheCleanerAccessibilityService.getInstance() != null) {
+            return true;
+        }
+        String shortName = new ComponentName(this, CacheCleanerAccessibilityService.class).flattenToShortString();
+        String fullName = new ComponentName(this, CacheCleanerAccessibilityService.class).flattenToString();
         String enabledServices = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
         if (enabledServices != null) {
             String[] services = enabledServices.split(":");
             for (String s : services) {
-                if (s.equalsIgnoreCase(expectedComponentName)) {
+                String trimmed = s.trim();
+                if (trimmed.equalsIgnoreCase(shortName) || trimmed.equalsIgnoreCase(fullName)) {
                     return true;
                 }
             }
@@ -331,15 +336,11 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     }
 
     private List<String> getAllLoadedPackages() {
-        List<String> pkgs = new ArrayList<>();
         if (mAdapter != null) {
-            pkgs.addAll(mAdapter.getSelectedPackages());
-            if (pkgs.isEmpty()) {
-                mAdapter.selectAll(true);
-                pkgs.addAll(mAdapter.getSelectedPackages());
-            }
+            List<String> all = mAdapter.getAllPackages();
+            if (!all.isEmpty()) return all;
         }
-        return pkgs;
+        return Collections.emptyList();
     }
 
     private void loadInstalledApps() {

@@ -68,6 +68,14 @@ public class AppListAdapter extends RecyclerView.Adapter<AppListAdapter.AppViewH
         return selected;
     }
 
+    public List<String> getAllPackages() {
+        List<String> all = new ArrayList<>();
+        for (AppInfo app : fullList) {
+            all.add(app.getPackageName());
+        }
+        return all;
+    }
+
     @NonNull
     @Override
     public AppViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
