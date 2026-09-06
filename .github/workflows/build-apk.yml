@@ -1,21 +1,24 @@
-name: Build Android APK
+name: Build & Release Android APK
 
 on:
   push:
-    branches: [ "**" ]
+    branches: [ "main", "master" ]
     tags: [ "v*" ]
-  pull_request:
-    branches: [ "**" ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    name: Build APK
+    name: Build & Publish Release
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -27,34 +30,43 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Build Debug APK
+      - name: Build APK
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload Debug APK Artifact
+      - name: Prepare APK Asset
+        run: |
+          mkdir -p release-assets
+          cp app/build/outputs/apk/debug/app-debug.apk release-assets/VivoToolMaster.apk
+
+      - name: Upload APK to Workflow Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: VivoDevBannerKiller-Debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: VivoToolMaster-APK
+          path: release-assets/VivoToolMaster.apk
           if-no-files-found: error
           retention-days: 30
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --stacktrace || true
-
-      - name: Upload Release APK (if exists)
-        uses: actions/upload-artifact@v4
-        with:
-          name: VivoDevBannerKiller-Release
-          path: app/build/outputs/apk/release/
-          if-no-files-found: ignore
-          retention-days: 30
-
-      - name: Create GitHub Release (On Tag Push)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Automatic GitHub Release
         uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         with:
-          files: |
-            app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/apk/release/*.apk
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.2.0-release' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Vivo ToolMaster v1.2.0' }}
+          body: |
+            ### 🚀 Vivo ToolMaster (DevBanner Killer & Standalone Deep Cache Cleaner)
+
+            #### ✨ What's New:
+            - **Dev Banner Auto-Killer:** Automatically intercepts and dismisses Vivo's red "Dev Mode" status bar banner (0ms delay).
+            - **Auto-Kill ON/OFF Switch:** Toggle background monitoring on or off anytime.
+            - **1-Tap Manual Kill:** Instantly cleans the banner on demand.
+            - **🛑 0 MB RAM Mode:** Stop the app process with 1 tap to save 100% of background memory.
+            - **🧹 Standalone Deep Cache Cleaner:** Clean all apps' cache or selected apps without Root and without Shizuku (Automated Accessibility Engine).
+            - **⚡ Live Storage Meter:** Real-time calculation of actual MB/GB freed on flash storage.
+
+            #### 📲 Download & Install:
+            Download **`VivoToolMaster.apk`** attached below directly onto your phone and install!
+          draft: false
+          prerelease: false
+          files: release-assets/VivoToolMaster.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
