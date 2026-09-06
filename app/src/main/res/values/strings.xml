@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">Vivo DevBanner Killer</string>
+    <string name="app_name">Vivo ToolMaster</string>
+    <string name="accessibility_description">Automated Cache Cleaner to clear cache of selected apps automatically without Root or Shizuku.</string>
 </resources>
