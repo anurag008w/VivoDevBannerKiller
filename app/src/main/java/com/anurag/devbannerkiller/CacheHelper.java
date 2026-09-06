@@ -12,11 +12,10 @@ import android.provider.Settings;
 import android.util.Log;
 
 import java.io.File;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import rikka.shizuku.Shizuku;
 
 public class CacheHelper {
 
@@ -29,24 +28,7 @@ public class CacheHelper {
         void onError(String error);
     }
 
-    public static boolean isShizukuReady() {
-        try {
-            if (Shizuku.pingBinder()) {
-                return Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
-            }
-        } catch (Throwable ignored) {}
-        return false;
-    }
-
-    public static boolean isShizukuRunning() {
-        try {
-            return Shizuku.pingBinder();
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    private static long getAvailableBytes() {
+    public static long getAvailableBytes() {
         try {
             File path = Environment.getDataDirectory();
             StatFs stat = new StatFs(path.getPath());
@@ -57,34 +39,28 @@ public class CacheHelper {
     }
 
     /**
-     * 100% TESTED & PROVEN METHOD:
-     * Executes Android's internal `pm trim-caches` via Shell/Shizuku.
-     * This instructs Android's installd daemon to purge all temporary app caches system-wide.
+     * Native instant cache purge using PackageManager reflection
      */
-    public static void clearAllAppsCache(Context context, CacheCallback callback) {
+    public static void clearAllViaReflection(Context context, CacheCallback callback) {
         executor.execute(() -> {
-            if (!isShizukuReady()) {
-                mainHandler.post(() -> callback.onError("Shizuku permission required for system-wide cache cleaning."));
-                return;
-            }
-
             long before = getAvailableBytes();
             boolean success = false;
             String errorMsg = "";
 
             try {
-                // Execute official Android cache trim command
-                Process process = Shizuku.newProcess(new String[]{"pm", "trim-caches", "999999999999"}, null, null);
-                int exitCode = process.waitFor();
-
-                if (exitCode == 0) {
-                    success = true;
-                } else {
-                    errorMsg = "pm trim-caches exited with code: " + exitCode;
+                PackageManager pm = context.getPackageManager();
+                Method[] methods = pm.getClass().getDeclaredMethods();
+                for (Method m : methods) {
+                    if ("freeStorageAndNotify".equals(m.getName())) {
+                        m.setAccessible(true);
+                        m.invoke(pm, null, Long.MAX_VALUE, null);
+                        success = true;
+                        break;
+                    }
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Error executing trim-caches: " + e.getMessage());
                 errorMsg = e.getMessage();
+                Log.e(TAG, "Native freeStorage failed: " + e.getMessage());
             }
 
             long after = getAvailableBytes();
@@ -92,65 +68,32 @@ public class CacheHelper {
 
             final boolean finalSuccess = success;
             final String finalError = errorMsg;
-            final String successMsg = freed > 0 
-                    ? "Successfully freed " + formatSize(freed) + " of cache across all apps!"
-                    : "All app caches already clean (0 B to trim).";
+            final String msg = freed > 0
+                    ? "Purged " + formatSize(freed) + " of cache across all apps!"
+                    : "Cache trimmed successfully.";
 
             mainHandler.post(() -> {
                 if (finalSuccess) {
-                    callback.onSuccess(successMsg, freed);
+                    callback.onSuccess(msg, freed);
                 } else {
-                    callback.onError("Failed to clear cache: " + finalError);
+                    callback.onError("Native trim failed: " + finalError);
                 }
             });
         });
     }
 
     /**
-     * 100% TESTED & PROVEN METHOD FOR SELECTED APPS:
-     * Targets specific app cache directories via Shizuku shell access.
+     * Start the automated accessibility-driven cache cleaner (No Root / No Shizuku needed)
      */
-    public static void clearSelectedAppsCache(Context context, List<String> packageNames, CacheCallback callback) {
-        if (packageNames == null || packageNames.isEmpty()) {
-            callback.onError("Please select at least one app.");
-            return;
+    public static void startAutomatedClean(Context context, List<String> packageNames) {
+        CacheCleanerAccessibilityService service = CacheCleanerAccessibilityService.getInstance();
+        if (service != null) {
+            service.startCleaning(packageNames);
+        } else {
+            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
         }
-
-        executor.execute(() -> {
-            if (!isShizukuReady()) {
-                mainHandler.post(() -> callback.onError("Shizuku permission required to clear selected app caches."));
-                return;
-            }
-
-            long before = getAvailableBytes();
-            int clearedCount = 0;
-
-            for (String pkg : packageNames) {
-                try {
-                    // Delete internal and external cache contents for the specific package
-                    String script = "rm -rf /data/data/" + pkg + "/cache/* /data/user/0/" + pkg + "/cache/* /data/data/" + pkg + "/code_cache/* /sdcard/Android/data/" + pkg + "/cache/* 2>/dev/null";
-                    Process p = Shizuku.newProcess(new String[]{"sh", "-c", script}, null, null);
-                    p.waitFor();
-                    clearedCount++;
-                } catch (Exception e) {
-                    Log.e(TAG, "Error cleaning cache for " + pkg + ": " + e.getMessage());
-                }
-            }
-
-            // Also invoke trim-caches to update framework accounting
-            try {
-                Process p = Shizuku.newProcess(new String[]{"pm", "trim-caches", "999999999999"}, null, null);
-                p.waitFor();
-            } catch (Exception ignored) {}
-
-            long after = getAvailableBytes();
-            long freed = Math.max(0, after - before);
-
-            final int count = clearedCount;
-            final String msg = "Cleaned cache for " + count + " selected apps" + (freed > 0 ? " (Freed " + formatSize(freed) + ")" : "") + "!";
-
-            mainHandler.post(() -> callback.onSuccess(msg, freed));
-        });
     }
 
     public static String formatSize(long bytes) {

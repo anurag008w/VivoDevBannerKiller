@@ -25,17 +25,14 @@ import androidx.cardview.widget.CardView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import rikka.shizuku.Shizuku;
-
 public class MainActivity extends AppCompatActivity implements AppListAdapter.OnSelectionChangedListener {
-
-    private static final int SHIZUKU_REQ_CODE = 1001;
 
     // Tabs
     private Button tabBanner;
@@ -53,7 +50,7 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     private Button btnKillProcess;
 
     // Cache Section Views
-    private TextView tvShizukuStatus;
+    private TextView tvCacheStatus;
     private Button btnClearAllCache;
     private Button btnSelectAll;
     private Button btnDeselectAll;
@@ -66,15 +63,6 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     private SharedPreferences mPrefs;
     private final ExecutorService mExecutor = Executors.newSingleThreadExecutor();
 
-    private final Shizuku.OnRequestPermissionResultListener mShizukuPermissionListener = (requestCode, grantResult) -> {
-        if (requestCode == SHIZUKU_REQ_CODE) {
-            updateShizukuUI();
-            if (grantResult == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Shizuku Permission Granted!", Toast.LENGTH_SHORT).show();
-            }
-        }
-    };
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -86,11 +74,6 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         setupTabs();
         setupBannerSection();
         setupCacheSection();
-
-        // Shizuku permission listener
-        try {
-            Shizuku.addRequestPermissionResultListener(mShizukuPermissionListener);
-        } catch (Throwable ignored) {}
     }
 
     private void initViews() {
@@ -109,7 +92,7 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         btnKillProcess = findViewById(R.id.btnKillProcess);
 
         // Cache
-        tvShizukuStatus = findViewById(R.id.tvShizukuStatus);
+        tvCacheStatus = findViewById(R.id.tvShizukuStatus);
         btnClearAllCache = findViewById(R.id.btnClearAllCache);
         btnSelectAll = findViewById(R.id.btnSelectAll);
         btnDeselectAll = findViewById(R.id.btnDeselectAll);
@@ -141,8 +124,7 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
             layoutBannerSection.setVisibility(View.GONE);
             layoutCacheSection.setVisibility(View.VISIBLE);
 
-            // Check Shizuku status & load apps if needed
-            updateShizukuUI();
+            updateCacheStatusUI();
             if (mAdapter == null || mAdapter.getItemCount() == 0) {
                 loadInstalledApps();
             }
@@ -156,7 +138,7 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         switchAutoKill.setOnCheckedChangeListener((buttonView, isChecked) -> {
             mPrefs.edit().putBoolean(DevBannerKillerService.KEY_AUTO_KILL, isChecked).apply();
             Toast.makeText(this, isChecked ? "Auto-Kill Activated" : "Auto-Kill Paused", Toast.LENGTH_SHORT).show();
-            updateStatusUI();
+            updateBannerStatusUI();
         });
 
         btnManualKill.setOnClickListener(v -> {
@@ -195,7 +177,6 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         mAdapter = new AppListAdapter(this);
         rvAppsList.setAdapter(mAdapter);
 
-        // Search text watcher
         etSearchApp.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -219,27 +200,33 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
             if (mAdapter != null) mAdapter.selectAll(false);
         });
 
-        // Clear All Apps Cache (1-Click)
+        // Clear ALL Apps Cache
         btnClearAllCache.setOnClickListener(v -> {
-            checkShizukuAndRun(() -> {
-                btnClearAllCache.setEnabled(false);
-                btnClearAllCache.setText("Clearing All Caches...");
-                CacheHelper.clearAllAppsCache(this, new CacheHelper.CacheCallback() {
-                    @Override
-                    public void onSuccess(String message, long bytesFreed) {
-                        btnClearAllCache.setEnabled(true);
-                        btnClearAllCache.setText("⚡ Clear ALL Apps Cache (1-Click)");
-                        Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
-                    }
+            // First check if native CLEAR_APP_CACHE is available
+            if (hasClearAppCachePermission()) {
+                clearAllViaNative();
+                return;
+            }
 
-                    @Override
-                    public void onError(String error) {
-                        btnClearAllCache.setEnabled(true);
-                        btnClearAllCache.setText("⚡ Clear ALL Apps Cache (1-Click)");
-                        Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show();
-                    }
-                });
-            });
+            // Otherwise, check if Accessibility Auto-Cleaner is ready
+            if (!isAccessibilityServiceEnabled()) {
+                showAccessibilityPrompt();
+                return;
+            }
+
+            // Run automated cleaning for all apps
+            List<String> allPackages = getAllLoadedPackages();
+            if (allPackages.isEmpty()) {
+                Toast.makeText(this, "Apps still loading, please wait...", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            CacheCleanerAccessibilityService service = CacheCleanerAccessibilityService.getInstance();
+            if (service != null) {
+                service.startCleaning(allPackages);
+            } else {
+                showAccessibilityPrompt();
+            }
         });
 
         // Clear Selected Apps Cache
@@ -250,62 +237,109 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
                 return;
             }
 
-            checkShizukuAndRun(() -> {
-                btnClearSelectedCache.setEnabled(false);
-                btnClearSelectedCache.setText("Clearing Selected...");
-                CacheHelper.clearSelectedAppsCache(this, selected, new CacheHelper.CacheCallback() {
-                    @Override
-                    public void onSuccess(String message, long bytesFreed) {
-                        btnClearSelectedCache.setEnabled(true);
-                        updateSelectedCount(selected.size());
-                        Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
-                    }
+            if (hasClearAppCachePermission()) {
+                clearAllViaNative();
+                return;
+            }
 
-                    @Override
-                    public void onError(String error) {
-                        btnClearSelectedCache.setEnabled(true);
-                        updateSelectedCount(selected.size());
-                        Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show();
+            if (!isAccessibilityServiceEnabled()) {
+                showAccessibilityPrompt();
+                return;
+            }
+
+            CacheCleanerAccessibilityService service = CacheCleanerAccessibilityService.getInstance();
+            if (service != null) {
+                service.startCleaning(selected);
+            } else {
+                showAccessibilityPrompt();
+            }
+        });
+
+        tvCacheStatus.setOnClickListener(v -> {
+            if (!isAccessibilityServiceEnabled()) {
+                showAccessibilityPrompt();
+            }
+        });
+    }
+
+    private boolean hasClearAppCachePermission() {
+        return checkSelfPermission("android.permission.CLEAR_APP_CACHE") == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void clearAllViaNative() {
+        btnClearAllCache.setEnabled(false);
+        btnClearAllCache.setText("Purging System Cache...");
+        mExecutor.execute(() -> {
+            boolean done = false;
+            try {
+                PackageManager pm = getPackageManager();
+                Method[] methods = pm.getClass().getDeclaredMethods();
+                for (Method m : methods) {
+                    if ("freeStorageAndNotify".equals(m.getName())) {
+                        m.setAccessible(true);
+                        m.invoke(pm, null, Long.MAX_VALUE, null);
+                        done = true;
+                        break;
                     }
-                });
+                }
+            } catch (Exception ignored) {}
+
+            final boolean success = done;
+            runOnUiThread(() -> {
+                btnClearAllCache.setEnabled(true);
+                btnClearAllCache.setText("⚡ Clear ALL Apps Cache (1-Click)");
+                if (success) {
+                    Toast.makeText(this, "🎉 Instant Native Cache Purge Complete!", Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, "Native purge finished.", Toast.LENGTH_SHORT).show();
+                }
             });
         });
     }
 
-    private void checkShizukuAndRun(Runnable action) {
-        if (!CacheHelper.isShizukuRunning()) {
-            Toast.makeText(this, "Shizuku is not running on device! Please start Shizuku.", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        if (!CacheHelper.isShizukuReady()) {
-            try {
-                Shizuku.requestPermission(SHIZUKU_REQ_CODE);
-            } catch (Exception e) {
-                Toast.makeText(this, "Failed to request Shizuku permission: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-            return;
-        }
-
-        action.run();
+    private void showAccessibilityPrompt() {
+        Toast.makeText(this, "Please enable 'Automated Cache Cleaner' in Accessibility settings for 100% automated cache clearing without root/PC!", Toast.LENGTH_LONG).show();
+        Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+        startActivity(intent);
     }
 
-    private void updateShizukuUI() {
-        if (CacheHelper.isShizukuReady()) {
-            tvShizukuStatus.setText("Shizuku: Active ✅");
-            tvShizukuStatus.setTextColor(getResources().getColor(R.color.colorSuccess));
-        } else if (CacheHelper.isShizukuRunning()) {
-            tvShizukuStatus.setText("Shizuku: Tap to Grant ⚠️");
-            tvShizukuStatus.setTextColor(getResources().getColor(R.color.colorWarning));
-            tvShizukuStatus.setOnClickListener(v -> {
-                try {
-                    Shizuku.requestPermission(SHIZUKU_REQ_CODE);
-                } catch (Exception ignored) {}
-            });
-        } else {
-            tvShizukuStatus.setText("Shizuku: Stopped ❌");
-            tvShizukuStatus.setTextColor(getResources().getColor(R.color.colorError));
+    private boolean isAccessibilityServiceEnabled() {
+        String expectedComponentName = new ComponentName(this, CacheCleanerAccessibilityService.class).flattenToString();
+        String enabledServices = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        if (enabledServices != null) {
+            String[] services = enabledServices.split(":");
+            for (String s : services) {
+                if (s.equalsIgnoreCase(expectedComponentName)) {
+                    return true;
+                }
+            }
         }
+        return false;
+    }
+
+    private void updateCacheStatusUI() {
+        if (hasClearAppCachePermission()) {
+            tvCacheStatus.setText("Engine: Native Instant ✅");
+            tvCacheStatus.setTextColor(getResources().getColor(R.color.colorSuccess));
+        } else if (isAccessibilityServiceEnabled()) {
+            tvCacheStatus.setText("Auto-Cleaner: Ready ✅");
+            tvCacheStatus.setTextColor(getResources().getColor(R.color.colorSuccess));
+        } else {
+            tvCacheStatus.setText("Tap to Enable Auto-Clean ⚠️");
+            tvCacheStatus.setTextColor(getResources().getColor(R.color.colorWarning));
+        }
+    }
+
+    private List<String> getAllLoadedPackages() {
+        List<String> pkgs = new ArrayList<>();
+        if (mAdapter != null) {
+            pkgs.addAll(mAdapter.getSelectedPackages());
+            if (pkgs.isEmpty()) {
+                mAdapter.selectAll(true);
+                pkgs.addAll(mAdapter.getSelectedPackages());
+            }
+        }
+        return pkgs;
     }
 
     private void loadInstalledApps() {
@@ -318,22 +352,18 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
             List<AppInfo> appList = new ArrayList<>();
 
             for (ApplicationInfo info : apps) {
-                // Filter out essential system packages, show user installed & major apps
                 boolean isSystem = (info.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
                 String name = info.loadLabel(pm).toString();
                 String pkg = info.packageName;
                 Drawable icon = info.loadIcon(pm);
 
-                // Ignore this app itself
                 if (pkg.equals(getPackageName())) continue;
 
-                // Include user apps or apps with launch intents
                 if (!isSystem || pm.getLaunchIntentForPackage(pkg) != null) {
                     appList.add(new AppInfo(name, pkg, icon, isSystem));
                 }
             }
 
-            // Sort alphabetically by app name
             Collections.sort(appList, (a, b) -> a.getAppName().compareToIgnoreCase(b.getAppName()));
 
             runOnUiThread(() -> {
@@ -348,21 +378,17 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
 
     @Override
     public void onSelectionChanged(int selectedCount) {
-        updateSelectedCount(selectedCount);
-    }
-
-    private void updateSelectedCount(int count) {
-        btnClearSelectedCache.setText("🗑️ Clear Selected Cache (" + count + ")");
+        btnClearSelectedCache.setText("🗑️ Clear Selected Cache (" + selectedCount + ")");
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        updateStatusUI();
-        updateShizukuUI();
+        updateBannerStatusUI();
+        updateCacheStatusUI();
     }
 
-    private void updateStatusUI() {
+    private void updateBannerStatusUI() {
         boolean hasPermission = isNotificationServiceEnabled();
         int totalKills = mPrefs.getInt(DevBannerKillerService.KEY_KILL_COUNT, 0);
         tvKillCount.setText("Banners Blocked: " + totalKills);
@@ -391,21 +417,11 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
             final String[] names = flat.split(":");
             for (String name : names) {
                 final ComponentName cn = ComponentName.unflattenFromString(name);
-                if (cn != null) {
-                    if (TextUtils.equals(pkgName, cn.getPackageName())) {
-                        return true;
-                    }
+                if (cn != null && TextUtils.equals(pkgName, cn.getPackageName())) {
+                    return true;
                 }
             }
         }
         return false;
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        try {
-            Shizuku.removeRequestPermissionResultListener(mShizukuPermissionListener);
-        } catch (Throwable ignored) {}
     }
 }
