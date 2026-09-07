@@ -243,6 +243,30 @@
                         android:textSize="14sp"
                         android:textStyle="bold" />
 
+                    <!-- Open Developer Options Directly -->
+                    <Button
+                        android:id="@+id/btnOpenDevOptions"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:layout_marginTop="10dp"
+                        android:backgroundTint="#0EA5E9"
+                        android:text="🛠️ Open Developer Options"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <!-- Restore Developer Mode in Settings -->
+                    <Button
+                        android:id="@+id/btnRestoreDevOptions"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:layout_marginTop="10dp"
+                        android:backgroundTint="#10B981"
+                        android:text="🔄 Restore Developer Mode (Settings Menu)"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
                     <!-- Kill Process Button (0 RAM) -->
                     <Button
                         android:id="@+id/btnKillProcess"
@@ -262,6 +286,65 @@
                         android:text="Tap 'Stop App Process' whenever you want to completely exit without keeping background RAM."
                         android:textColor="#64748B"
                         android:textSize="11sp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 24/7 Permanent Background Auto-Kill Card (ADB Command) -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/cardAdbHelper"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="#1E293B"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="2dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:id="@+id/tvAdbTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🚀 Permanent 24/7 Silent Auto-Kill"
+                        android:textColor="#38BDF8"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvAdbDesc"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Run this 1-time command from PC to enable 100% silent background auto-kill (no UI popup needed):"
+                        android:textColor="#94A3B8"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tvAdbCommand"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:background="#0F172A"
+                        android:fontFamily="monospace"
+                        android:padding="10dp"
+                        android:text="adb shell pm grant com.anurag.devbannerkiller android.permission.WRITE_SECURE_SETTINGS"
+                        android:textColor="#34D399"
+                        android:textSize="11sp" />
+
+                    <Button
+                        android:id="@+id/btnCopyAdbCommand"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:layout_marginTop="8dp"
+                        android:text="📋 Copy ADB Command"
+                        android:textColor="#38BDF8"
+                        android:textSize="12sp"
+                        app:strokeColor="#38BDF8" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

@@ -3,10 +3,7 @@ package com.anurag.devbannerkiller;
 import android.app.Notification;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.database.ContentObserver;
-import android.net.Uri;
-import android.os.Handler;
-import android.os.Looper;
+import android.content.pm.PackageManager;
 import android.provider.Settings;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
@@ -20,10 +17,48 @@ public class DevBannerKillerService extends NotificationListenerService {
     public static final String KEY_KILL_COUNT = "kill_count";
 
     private static DevBannerKillerService sInstance;
-    private ContentObserver mSettingsObserver;
 
     public static DevBannerKillerService getInstance() {
         return sInstance;
+    }
+
+    public static boolean hasWriteSecureSettings(Context context) {
+        if (context == null) return false;
+        return context.checkSelfPermission("android.permission.WRITE_SECURE_SETTINGS") == PackageManager.PERMISSION_GRANTED;
+    }
+
+    public static boolean restoreDevOptionsDirect(Context context) {
+        if (context == null) return false;
+        boolean success = false;
+        try {
+            Settings.Global.putInt(context.getContentResolver(), "development_settings_enabled", 1);
+            Settings.Global.putInt(context.getContentResolver(), "vivo_development_show", 1);
+            Settings.Global.putInt(context.getContentResolver(), "adb_enabled", 1);
+            success = true;
+            Log.i(TAG, "Dev options restored directly via Settings.Global (dev=1, vivo_show=1)");
+        } catch (SecurityException se) {
+            Log.w(TAG, "WRITE_SECURE_SETTINGS not granted: " + se.getMessage());
+        } catch (Exception e) {
+            Log.e(TAG, "Error writing Settings.Global: " + e.getMessage());
+        }
+        return success;
+    }
+
+    public static boolean killDevBannerDirect(Context context) {
+        if (context == null) return false;
+        boolean success = false;
+        try {
+            Settings.Global.putInt(context.getContentResolver(), "development_settings_enabled", 0);
+            Settings.Global.putInt(context.getContentResolver(), "vivo_development_show", 1);
+            Settings.Global.putInt(context.getContentResolver(), "adb_enabled", 1);
+            success = true;
+            Log.i(TAG, "Dev banner killed directly via Settings.Global (dev=0, vivo_show=1, adb=1)");
+        } catch (SecurityException se) {
+            Log.w(TAG, "WRITE_SECURE_SETTINGS not granted: " + se.getMessage());
+        } catch (Exception e) {
+            Log.e(TAG, "Error writing Settings.Global: " + e.getMessage());
+        }
+        return success;
     }
 
     @Override
@@ -39,10 +74,7 @@ public class DevBannerKillerService extends NotificationListenerService {
         sInstance = this;
         Log.d(TAG, "NotificationListenerService connected");
 
-        // Register observer to keep vivo_development_show at 0
-        registerSettingsObserver();
-
-        // Perform an immediate scan and kill on connect
+        // Perform an immediate scan on connect
         dismissAllDevBanners();
     }
 
@@ -50,7 +82,6 @@ public class DevBannerKillerService extends NotificationListenerService {
     public void onListenerDisconnected() {
         super.onListenerDisconnected();
         sInstance = null;
-        unregisterSettingsObserver();
         Log.d(TAG, "NotificationListenerService disconnected");
     }
 
@@ -58,7 +89,6 @@ public class DevBannerKillerService extends NotificationListenerService {
     public void onDestroy() {
         super.onDestroy();
         sInstance = null;
-        unregisterSettingsObserver();
         Log.d(TAG, "DevBannerKillerService destroyed");
     }
 
@@ -74,17 +104,11 @@ public class DevBannerKillerService extends NotificationListenerService {
         }
 
         if (isVivoDevModeNotification(sbn)) {
-            Log.i(TAG, "Dev Mode banner notification detected! Cancelling immediately: " + sbn.getKey());
+            Log.i(TAG, "Dev Mode banner notification detected! Key: " + sbn.getKey());
             try {
                 cancelNotification(sbn.getKey());
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to cancel notification: " + e.getMessage());
-            }
+            } catch (Exception ignored) {}
 
-            // Also reset settings toggle to 0
-            resetVivoDevShow();
-
-            // Increment kill count
             int count = prefs.getInt(KEY_KILL_COUNT, 0) + 1;
             prefs.edit().putInt(KEY_KILL_COUNT, count).apply();
         }
@@ -101,10 +125,19 @@ public class DevBannerKillerService extends NotificationListenerService {
             return true;
         }
 
+        // Android System Developer notification
+        if ("android".equals(pkg) && (id == 26 || id == 2147483647)) {
+            Notification n = sbn.getNotification();
+            if (n != null && "DEVELOPER".equals(n.getChannelId())) {
+                return true;
+            }
+        }
+
         Notification notification = sbn.getNotification();
         if (notification != null) {
             // Check Notification Channel
-            if ("DEVELOPMENT_MODE".equals(notification.getChannelId())) {
+            String channelId = notification.getChannelId();
+            if ("DEVELOPMENT_MODE".equals(channelId) || "DEVELOPER".equals(channelId)) {
                 return true;
             }
 
@@ -136,9 +169,11 @@ public class DevBannerKillerService extends NotificationListenerService {
             if (activeNotifications != null) {
                 for (StatusBarNotification sbn : activeNotifications) {
                     if (isVivoDevModeNotification(sbn)) {
-                        cancelNotification(sbn.getKey());
+                        try {
+                            cancelNotification(sbn.getKey());
+                        } catch (Exception ignored) {}
                         killed++;
-                        Log.i(TAG, "Manual scan killed notification: " + sbn.getKey());
+                        Log.i(TAG, "Manual scan caught dev notification: " + sbn.getKey());
                     }
                 }
             }
@@ -146,52 +181,6 @@ public class DevBannerKillerService extends NotificationListenerService {
             Log.e(TAG, "Error in dismissAllDevBanners: " + e.getMessage());
         }
 
-        resetVivoDevShow();
         return killed;
-    }
-
-    private void resetVivoDevShow() {
-        try {
-            Settings.Global.putInt(getContentResolver(), "vivo_development_show", 0);
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void registerSettingsObserver() {
-        if (mSettingsObserver != null) return;
-        try {
-            mSettingsObserver = new ContentObserver(new Handler(Looper.getMainLooper())) {
-                @Override
-                public void onChange(boolean selfChange, Uri uri) {
-                    SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-                    if (prefs.getBoolean(KEY_AUTO_KILL, true)) {
-                        resetVivoDevShow();
-                        dismissAllDevBanners();
-                    }
-                }
-            };
-            getContentResolver().registerContentObserver(
-                    Settings.Global.getUriFor("vivo_development_show"),
-                    false,
-                    mSettingsObserver
-            );
-            getContentResolver().registerContentObserver(
-                    Settings.Global.getUriFor("development_settings_enabled"),
-                    false,
-                    mSettingsObserver
-            );
-        } catch (Exception e) {
-            Log.w(TAG, "Could not register settings observer: " + e.getMessage());
-        }
-    }
-
-    private void unregisterSettingsObserver() {
-        if (mSettingsObserver != null) {
-            try {
-                getContentResolver().unregisterContentObserver(mSettingsObserver);
-            } catch (Exception ignored) {
-            }
-            mSettingsObserver = null;
-        }
     }
 }

@@ -47,7 +47,11 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     private CardView cardPermission;
     private Button btnGrantPermission;
     private Button btnManualKill;
+    private Button btnOpenDevOptions;
+    private Button btnRestoreDevOptions;
     private Button btnKillProcess;
+    private CardView cardAdbHelper;
+    private Button btnCopyAdbCommand;
 
     // Cache Section Views
     private TextView tvCacheStatus;
@@ -89,6 +93,8 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         cardPermission = findViewById(R.id.cardPermission);
         btnGrantPermission = findViewById(R.id.btnGrantPermission);
         btnManualKill = findViewById(R.id.btnManualKill);
+        btnOpenDevOptions = findViewById(R.id.btnOpenDevOptions);
+        btnRestoreDevOptions = findViewById(R.id.btnRestoreDevOptions);
         btnKillProcess = findViewById(R.id.btnKillProcess);
 
         // Cache
@@ -146,17 +152,40 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
             DevBannerKillerService service = DevBannerKillerService.getInstance();
             if (service != null) {
                 count = service.dismissAllDevBanners();
-            } else {
-                try {
-                    Settings.Global.putInt(getContentResolver(), "vivo_development_show", 0);
-                } catch (Exception ignored) {}
+            }
+            if (DevBannerKillerService.hasWriteSecureSettings(this)) {
+                DevBannerKillerService.killDevBannerDirect(this);
             }
 
             int totalKills = mPrefs.getInt(DevBannerKillerService.KEY_KILL_COUNT, 0) + (count > 0 ? count : 1);
             mPrefs.edit().putInt(DevBannerKillerService.KEY_KILL_COUNT, totalKills).apply();
             tvKillCount.setText("Banners Blocked: " + totalKills);
 
-            Toast.makeText(this, "Dev Banner Kill Triggered!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Dev Banner Killed!", Toast.LENGTH_SHORT).show();
+            updateBannerStatusUI();
+        });
+
+        btnOpenDevOptions.setOnClickListener(v -> {
+            try {
+                if (DevBannerKillerService.hasWriteSecureSettings(this)) {
+                    DevBannerKillerService.restoreDevOptionsDirect(this);
+                }
+                Intent intent = new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Exception e) {
+                Toast.makeText(this, "Could not open Dev Options: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        btnRestoreDevOptions.setOnClickListener(v -> {
+            if (DevBannerKillerService.hasWriteSecureSettings(this)) {
+                DevBannerKillerService.restoreDevOptionsDirect(this);
+                Toast.makeText(this, "Developer Options restored in Settings > More settings!", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Please grant WRITE_SECURE_SETTINGS via ADB first!", Toast.LENGTH_LONG).show();
+            }
+            updateBannerStatusUI();
         });
 
         btnGrantPermission.setOnClickListener(v -> {

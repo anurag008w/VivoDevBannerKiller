@@ -43,6 +43,9 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
     private int mTotalToClean = 0;
     private int mCleanedCount = 0;
 
+    private boolean mDismissingDevBanner = false;
+    private static final long DEV_BANNER_TIMEOUT = 5000;
+
     private final Handler mHandler = new Handler(Looper.getMainLooper());
 
     private static final long APP_WATCHDOG_TIMEOUT = 5000; // 5s watchdog per app
@@ -62,6 +65,28 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
             advanceToNextApp();
         }
     };
+
+    private final Runnable mDevBannerTimeoutRunnable = () -> {
+        if (mDismissingDevBanner) {
+            mDismissingDevBanner = false;
+            Log.w(TAG, "Dev banner dismissal timed out.");
+        }
+    };
+
+    public synchronized void dismissDevBannerViaAccessibility() {
+        mDismissingDevBanner = true;
+        mHandler.removeCallbacks(mDevBannerTimeoutRunnable);
+        mHandler.postDelayed(mDevBannerTimeoutRunnable, DEV_BANNER_TIMEOUT);
+
+        Intent intent = new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        try {
+            startActivity(intent);
+        } catch (Exception e) {
+            Log.e(TAG, "Could not open dev settings: " + e.getMessage());
+            mDismissingDevBanner = false;
+        }
+    }
 
     public static CacheCleanerAccessibilityService getInstance() {
         return sInstance;
@@ -83,6 +108,7 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
         super.onDestroy();
         sInstance = null;
         mIsCleaning = false;
+        mDismissingDevBanner = false;
         mCurrentStep = Step.IDLE;
         mHandler.removeCallbacksAndMessages(null);
         Log.d(TAG, "CacheCleanerAccessibilityService destroyed");
@@ -92,6 +118,7 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
     public void onInterrupt() {
         Log.d(TAG, "CacheCleanerAccessibilityService interrupted");
         mIsCleaning = false;
+        mDismissingDevBanner = false;
         mCurrentStep = Step.IDLE;
         mHandler.removeCallbacksAndMessages(null);
     }
@@ -171,6 +198,11 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (mDismissingDevBanner) {
+            handleDevBannerDismissal(event);
+            return;
+        }
+
         if (!mIsCleaning || mCurrentStep == Step.IDLE || mCurrentStep == Step.ADVANCING) {
             return;
         }
@@ -221,6 +253,72 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
                 }
             }
         }
+    }
+
+    private void handleDevBannerDismissal(AccessibilityEvent event) {
+        AccessibilityNodeInfo root = getSettingsRoot(event);
+        if (root == null) return;
+
+        AccessibilityNodeInfo devSwitch = findDeveloperOptionsSwitch(root);
+        if (devSwitch != null) {
+            if (devSwitch.isChecked()) {
+                Log.d(TAG, "Developer options switch is ON, toggling OFF via accessibility...");
+                clickNode(devSwitch);
+            }
+            mDismissingDevBanner = false;
+            mHandler.removeCallbacks(mDevBannerTimeoutRunnable);
+
+            // Wait 250ms for switch toggle animation, then return back to app
+            mHandler.postDelayed(() -> {
+                performGlobalAction(GLOBAL_ACTION_BACK);
+                Toast.makeText(this, "🎉 Dev Banner Dismissed!", Toast.LENGTH_SHORT).show();
+            }, 250);
+        }
+    }
+
+    private AccessibilityNodeInfo findDeveloperOptionsSwitch(AccessibilityNodeInfo root) {
+        if (root == null) return null;
+
+        // Method 1: Find "Developer options" title node and inspect parent hierarchy
+        List<AccessibilityNodeInfo> textNodes = root.findAccessibilityNodeInfosByText("Developer options");
+        if (textNodes != null && !textNodes.isEmpty()) {
+            for (AccessibilityNodeInfo titleNode : textNodes) {
+                AccessibilityNodeInfo parent = titleNode.getParent();
+                while (parent != null) {
+                    AccessibilityNodeInfo sw = findFirstSwitchInHierarchy(parent);
+                    if (sw != null) return sw;
+                    parent = parent.getParent();
+                }
+            }
+        }
+
+        // Method 2: Check for top-of-screen switch near upper area
+        List<AccessibilityNodeInfo> checkBoxes = root.findAccessibilityNodeInfosByViewId("android:id/checkbox");
+        if (checkBoxes != null && !checkBoxes.isEmpty()) {
+            for (AccessibilityNodeInfo cb : checkBoxes) {
+                Rect bounds = new Rect();
+                cb.getBoundsInScreen(bounds);
+                if (bounds.top < 600) {
+                    return cb;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private AccessibilityNodeInfo findFirstSwitchInHierarchy(AccessibilityNodeInfo root) {
+        if (root == null) return null;
+        if ("android.widget.Switch".contentEquals(root.getClassName()) || root.isCheckable()) {
+            return root;
+        }
+        int count = root.getChildCount();
+        for (int i = 0; i < count; i++) {
+            AccessibilityNodeInfo child = root.getChild(i);
+            AccessibilityNodeInfo found = findFirstSwitchInHierarchy(child);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     private String getAppName(String packageName) {
@@ -297,7 +395,7 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
     };
 
     private static final String[] CLEAR_CACHE_IDS = {
-            "clear_cache_button", "button_clear_cache", "clear_cache"
+            "clear_cache_button", "button_clear_cache", "clear_cache", "button"
     };
 
     private static final String[] STORAGE_TEXTS = {
@@ -311,16 +409,31 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
     private AccessibilityNodeInfo findClearCacheNode(AccessibilityNodeInfo root) {
         if (root == null) return null;
 
+        // 1. Text-based fuzzy search is the primary standard across OEMs
+        AccessibilityNodeInfo nodeByText = findNodeByTextFuzzy(root, CLEAR_CACHE_TEXTS);
+        if (nodeByText != null) {
+            return nodeByText;
+        }
+
+        // 2. Resource ID search (with safety verification so 'Clear data' is never clicked)
         for (String idPart : CLEAR_CACHE_IDS) {
             List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId("com.android.settings:id/" + idPart);
             if (nodes != null && !nodes.isEmpty()) {
                 for (AccessibilityNodeInfo n : nodes) {
-                    if (n != null) return n;
+                    if (n != null) {
+                        CharSequence text = n.getText();
+                        if (text != null) {
+                            String lower = text.toString().toLowerCase();
+                            if (lower.contains("cache") || lower.contains("कैश")) {
+                                return n;
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        return findNodeByTextFuzzy(root, CLEAR_CACHE_TEXTS);
+        return null;
     }
 
     private AccessibilityNodeInfo findStorageNode(AccessibilityNodeInfo root) {
