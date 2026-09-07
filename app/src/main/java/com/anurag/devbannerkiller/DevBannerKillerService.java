@@ -103,8 +103,12 @@ public class DevBannerKillerService extends NotificationListenerService {
         sInstance = this;
         Log.d(TAG, "NotificationListenerService connected");
 
-        // Perform an immediate scan on connect
-        dismissAllDevBanners();
+        // Perform an immediate scan on connect only if auto-kill is enabled
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        boolean autoKill = prefs.getBoolean(KEY_AUTO_KILL, true);
+        if (autoKill) {
+            dismissAllDevBanners();
+        }
     }
 
     @Override

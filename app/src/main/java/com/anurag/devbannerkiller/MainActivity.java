@@ -35,8 +35,8 @@ import java.util.concurrent.Executors;
 public class MainActivity extends AppCompatActivity implements AppListAdapter.OnSelectionChangedListener {
 
     // Tabs
-    private Button tabBanner;
-    private Button tabCache;
+    private TextView tabBanner;
+    private TextView tabCache;
     private View layoutBannerSection;
     private View layoutCacheSection;
 
@@ -111,23 +111,26 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     }
 
     private void setupTabs() {
-        tabBanner.setOnClickListener(v -> {
-            tabBanner.setBackgroundTintList(getColorStateList(R.color.colorPrimary));
-            tabBanner.setTextColor(getResources().getColor(android.R.color.white));
+        tabBanner.setOnClickListener(v -> selectTab(true));
+        tabCache.setOnClickListener(v -> selectTab(false));
+    }
 
-            tabCache.setBackgroundTintList(getColorStateList(android.R.color.transparent));
-            tabCache.setTextColor(getResources().getColor(R.color.colorAccent));
+    private void selectTab(boolean isBannerTab) {
+        if (isBannerTab) {
+            tabBanner.setBackgroundResource(R.drawable.bg_tab_selected);
+            tabBanner.setTextColor(0xFFFFFFFF);
+
+            tabCache.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            tabCache.setTextColor(0xFF94A3B8);
 
             layoutBannerSection.setVisibility(View.VISIBLE);
             layoutCacheSection.setVisibility(View.GONE);
-        });
+        } else {
+            tabCache.setBackgroundResource(R.drawable.bg_tab_selected);
+            tabCache.setTextColor(0xFFFFFFFF);
 
-        tabCache.setOnClickListener(v -> {
-            tabCache.setBackgroundTintList(getColorStateList(R.color.colorPrimary));
-            tabCache.setTextColor(getResources().getColor(android.R.color.white));
-
-            tabBanner.setBackgroundTintList(getColorStateList(android.R.color.transparent));
-            tabBanner.setTextColor(getResources().getColor(R.color.colorAccent));
+            tabBanner.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            tabBanner.setTextColor(0xFF94A3B8);
 
             layoutBannerSection.setVisibility(View.GONE);
             layoutCacheSection.setVisibility(View.VISIBLE);
@@ -136,7 +139,7 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
             if (mAdapter == null || mAdapter.getItemCount() == 0) {
                 loadInstalledApps();
             }
-        });
+        }
     }
 
     private void setupBannerSection() {
