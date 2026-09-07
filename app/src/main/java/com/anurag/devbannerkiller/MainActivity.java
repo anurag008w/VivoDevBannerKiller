@@ -21,6 +21,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.cardview.widget.CardView;
@@ -40,8 +41,10 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
 
     // Tabs
     private TextView tabBanner;
+    private TextView tabGuardian;
     private TextView tabCache;
     private View layoutBannerSection;
+    private View layoutGuardianSection;
     private View layoutCacheSection;
 
     // Banner Section Views
@@ -63,6 +66,19 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     private View btnKillProcess;
     private View btnCopyAdbCommand;
 
+    // Guardian Section Views
+    private SwitchCompat switchInfinityGuardian;
+    private TextView tvInfinityStatus;
+    private TextView btnRebindInfinity;
+    private EditText etSearchGuardian;
+    private TextView btnFilterAllGuardian;
+    private TextView btnFilterGuardedOnly;
+    private ProgressBar progressLoadingGuardian;
+    private RecyclerView rvGuardianApps;
+    private TextView btnBatteryOptimization;
+    private TextView btnRecentsGuide;
+    private GuardianAppAdapter mGuardianAdapter;
+
     // Cache Section Views
     private TextView tvCacheStatus;
     private Button btnClearAllCache;
@@ -74,6 +90,7 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     private Button btnClearSelectedCache;
 
     private AppListAdapter mAdapter;
+    private final List<AppInfo> mCachedAppsList = new ArrayList<>();
     private SharedPreferences mPrefs;
     private final ExecutorService mExecutor = Executors.newSingleThreadExecutor();
 
@@ -98,6 +115,7 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         initViews();
         setupTabs();
         setupBannerSection();
+        setupGuardianSection();
         setupCacheSection();
     }
 
@@ -110,8 +128,10 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
 
     private void initViews() {
         tabBanner = findViewById(R.id.tabBanner);
+        tabGuardian = findViewById(R.id.tabGuardian);
         tabCache = findViewById(R.id.tabCache);
         layoutBannerSection = findViewById(R.id.layoutBannerSection);
+        layoutGuardianSection = findViewById(R.id.layoutGuardianSection);
         layoutCacheSection = findViewById(R.id.layoutCacheSection);
 
         // Banner Hero & Bento
@@ -133,6 +153,18 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         btnKillProcess = findViewById(R.id.btnKillProcess);
         btnCopyAdbCommand = findViewById(R.id.btnCopyAdbCommand);
 
+        // Guardian Views
+        switchInfinityGuardian = findViewById(R.id.switchInfinityGuardian);
+        tvInfinityStatus = findViewById(R.id.tvInfinityStatus);
+        btnRebindInfinity = findViewById(R.id.btnRebindInfinity);
+        etSearchGuardian = findViewById(R.id.etSearchGuardian);
+        btnFilterAllGuardian = findViewById(R.id.btnFilterAllGuardian);
+        btnFilterGuardedOnly = findViewById(R.id.btnFilterGuardedOnly);
+        progressLoadingGuardian = findViewById(R.id.progressLoadingGuardian);
+        rvGuardianApps = findViewById(R.id.rvGuardianApps);
+        btnBatteryOptimization = findViewById(R.id.btnBatteryOptimization);
+        btnRecentsGuide = findViewById(R.id.btnRecentsGuide);
+
         // Cache
         tvCacheStatus = findViewById(R.id.tvShizukuStatus);
         btnClearAllCache = findViewById(R.id.btnClearAllCache);
@@ -145,48 +177,179 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     }
 
     private void setupTabs() {
-        tabBanner.setOnClickListener(v -> selectTab(true));
-        tabCache.setOnClickListener(v -> selectTab(false));
+        tabBanner.setOnClickListener(v -> selectTab("banner"));
+        tabGuardian.setOnClickListener(v -> selectTab("guardian"));
+        tabCache.setOnClickListener(v -> selectTab("cache"));
 
         handleIntent(getIntent());
     }
 
     private void handleIntent(Intent intent) {
-        if (intent != null && "cache".equals(intent.getStringExtra("open_tab"))) {
-            selectTab(false);
-            return;
+        if (intent != null) {
+            String tab = intent.getStringExtra("open_tab");
+            if (tab != null) {
+                selectTab(tab);
+                return;
+            }
         }
         String savedTab = mPrefs.getString(KEY_ACTIVE_TAB, "banner");
-        selectTab(!"cache".equals(savedTab));
+        selectTab(savedTab);
     }
 
-    private void selectTab(boolean isBannerTab) {
-        mPrefs.edit().putString(KEY_ACTIVE_TAB, isBannerTab ? "banner" : "cache").apply();
+    private void selectTab(String tabKey) {
+        mPrefs.edit().putString(KEY_ACTIVE_TAB, tabKey).apply();
 
-        if (isBannerTab) {
-            tabBanner.setBackgroundResource(R.drawable.bg_bottom_tab_active);
-            tabBanner.setTextColor(0xFFFFFFFF);
+        // Reset all tab styling
+        tabBanner.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        tabBanner.setTextColor(0xFF94A3B8);
+        tabGuardian.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        tabGuardian.setTextColor(0xFF94A3B8);
+        tabCache.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        tabCache.setTextColor(0xFF94A3B8);
 
-            tabCache.setBackgroundColor(android.graphics.Color.TRANSPARENT);
-            tabCache.setTextColor(0xFF94A3B8);
+        layoutBannerSection.setVisibility(View.GONE);
+        layoutGuardianSection.setVisibility(View.GONE);
+        layoutCacheSection.setVisibility(View.GONE);
 
-            layoutBannerSection.setVisibility(View.VISIBLE);
-            layoutCacheSection.setVisibility(View.GONE);
-        } else {
+        if ("guardian".equals(tabKey)) {
+            tabGuardian.setBackgroundResource(R.drawable.bg_bottom_tab_active);
+            tabGuardian.setTextColor(0xFFFFFFFF);
+            layoutGuardianSection.setVisibility(View.VISIBLE);
+
+            updateInfinityStatusUI();
+            if (mGuardianAdapter == null || mGuardianAdapter.getItemCount() == 0) {
+                loadInstalledApps();
+            }
+        } else if ("cache".equals(tabKey)) {
             tabCache.setBackgroundResource(R.drawable.bg_bottom_tab_active);
             tabCache.setTextColor(0xFFFFFFFF);
-
-            tabBanner.setBackgroundColor(android.graphics.Color.TRANSPARENT);
-            tabBanner.setTextColor(0xFF94A3B8);
-
-            layoutBannerSection.setVisibility(View.GONE);
             layoutCacheSection.setVisibility(View.VISIBLE);
 
             updateCacheStatusUI();
             if (mAdapter == null || mAdapter.getItemCount() == 0) {
                 loadInstalledApps();
             }
+        } else {
+            // Default: banner
+            tabBanner.setBackgroundResource(R.drawable.bg_bottom_tab_active);
+            tabBanner.setTextColor(0xFFFFFFFF);
+            layoutBannerSection.setVisibility(View.VISIBLE);
         }
+    }
+
+    private void setupGuardianSection() {
+        rvGuardianApps.setLayoutManager(new LinearLayoutManager(this));
+        mGuardianAdapter = new GuardianAppAdapter(this, (app, unkillable) -> {
+            vibrateTap();
+            AppGuardianHelper.setAppUnkillable(this, app.getPackageName(), unkillable);
+            if (unkillable) {
+                Toast.makeText(this, "🛡️ " + app.getAppName() + " is now UNKILLABLE!", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Removed protection from " + app.getAppName(), Toast.LENGTH_SHORT).show();
+            }
+        });
+        rvGuardianApps.setAdapter(mGuardianAdapter);
+
+        switchInfinityGuardian.setChecked(AppGuardianHelper.isInfinityGuardianEnabled(this));
+        switchInfinityGuardian.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            vibrateTap();
+            AppGuardianHelper.setInfinityGuardianEnabled(this, isChecked);
+            updateInfinityStatusUI();
+            Toast.makeText(this, isChecked ? "♾️ Infinity Gestures: Always-On ACTIVE" : "Infinity Gestures Protection: Paused", Toast.LENGTH_SHORT).show();
+        });
+
+        btnRebindInfinity.setOnClickListener(v -> {
+            vibrateTap();
+            boolean ok = AppGuardianHelper.ensureInfinityGesturesActive(this);
+            updateInfinityStatusUI();
+            if (ok) {
+                Toast.makeText(this, "🎉 Infinity Gestures Re-bound & Revived!", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Refreshed gesture settings.", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        etSearchGuardian.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (mGuardianAdapter != null) {
+                    mGuardianAdapter.filter(s != null ? s.toString() : "");
+                }
+            }
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        btnFilterAllGuardian.setOnClickListener(v -> {
+            vibrateTap();
+            btnFilterAllGuardian.setTextColor(0xFF38BDF8);
+            btnFilterGuardedOnly.setTextColor(0xFF94A3B8);
+            if (mGuardianAdapter != null) {
+                mGuardianAdapter.setFilterOnlyGuarded(false);
+            }
+        });
+
+        btnFilterGuardedOnly.setOnClickListener(v -> {
+            vibrateTap();
+            btnFilterGuardedOnly.setTextColor(0xFF38BDF8);
+            btnFilterAllGuardian.setTextColor(0xFF94A3B8);
+            if (mGuardianAdapter != null) {
+                mGuardianAdapter.setFilterOnlyGuarded(true);
+            }
+        });
+
+        btnBatteryOptimization.setOnClickListener(v -> {
+            vibrateTap();
+            AppGuardianHelper.openBatteryOptimizationSettings(this);
+        });
+
+        btnRecentsGuide.setOnClickListener(v -> {
+            vibrateTap();
+            showVivoRecentsGuideDialog();
+        });
+
+        updateInfinityStatusUI();
+    }
+
+    private void updateInfinityStatusUI() {
+        if (tvInfinityStatus == null) return;
+        boolean installed = AppGuardianHelper.isInfinityGesturesInstalled(this);
+        boolean active = AppGuardianHelper.isInfinityGesturesActive(this);
+        boolean guardianEnabled = AppGuardianHelper.isInfinityGuardianEnabled(this);
+
+        if (!installed) {
+            tvInfinityStatus.setText("Not Installed ⚠️");
+            tvInfinityStatus.setTextColor(0xFF94A3B8);
+        } else if (active) {
+            tvInfinityStatus.setText("Always-On Active ●");
+            tvInfinityStatus.setTextColor(0xFF34D399);
+        } else if (guardianEnabled) {
+            tvInfinityStatus.setText("Auto-Reviving... ⚡");
+            tvInfinityStatus.setTextColor(0xFFFBBF24);
+        } else {
+            tvInfinityStatus.setText("Protection Paused ○");
+            tvInfinityStatus.setTextColor(0xFF64748B);
+        }
+    }
+
+    private void showVivoRecentsGuideDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("🔒 Vivo Recents Lock Guide")
+                .setMessage("To ensure Vivo's RAM cleaner never closes your apps:\n\n"
+                        + "1. Open Recent Apps screen (swipe up from bottom or press Recent key).\n\n"
+                        + "2. Find the app preview card (e.g. Infinity Gestures or ToolMaster).\n\n"
+                        + "3. Swipe DOWN on the app card until a padlock 🔒 icon appears on it!\n\n"
+                        + "Once locked, Vivo will NEVER close the app even if you tap 'Speed Up' or 'Clear All'!")
+                .setPositiveButton("Got It", (d, w) -> d.dismiss())
+                .show();
+    }
+
+    private void vibrateTap() {
+        try {
+            getWindow().getDecorView().performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+        } catch (Exception ignored) {}
     }
 
     private void setupBannerSection() {
@@ -473,11 +636,20 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
 
             Collections.sort(appList, (a, b) -> a.getAppName().compareToIgnoreCase(b.getAppName()));
 
+            mCachedAppsList.clear();
+            mCachedAppsList.addAll(appList);
+
             runOnUiThread(() -> {
-                progressLoadingApps.setVisibility(View.GONE);
-                rvAppsList.setVisibility(View.VISIBLE);
+                if (progressLoadingApps != null) progressLoadingApps.setVisibility(View.GONE);
+                if (rvAppsList != null) rvAppsList.setVisibility(View.VISIBLE);
                 if (mAdapter != null) {
                     mAdapter.setApps(appList);
+                }
+
+                if (progressLoadingGuardian != null) progressLoadingGuardian.setVisibility(View.GONE);
+                if (rvGuardianApps != null) rvGuardianApps.setVisibility(View.VISIBLE);
+                if (mGuardianAdapter != null) {
+                    mGuardianAdapter.setApps(appList);
                 }
             });
         });
@@ -500,7 +672,11 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
             mExecutor.execute(() -> DevBannerKillerService.killDevBannerDirect(MainActivity.this));
         }
         updateBannerStatusUI();
+        updateInfinityStatusUI();
         updateCacheStatusUI();
+        if (mGuardianAdapter != null) {
+            mGuardianAdapter.notifyDataSetChanged();
+        }
     }
 
     private void updateBannerStatusUI() {

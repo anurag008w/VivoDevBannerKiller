@@ -50,17 +50,24 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.5.3-release' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Vivo ToolMaster v1.5.3' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.6.0-release' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Vivo ToolMaster v1.6.0' }}
           body: |
-            ### 🚀 Vivo ToolMaster v1.5.3 (Interactive Hero Shield Orb, Modern Bento Grid & Floating Dock)
+            ### 🚀 Vivo ToolMaster v1.6.0 (App Guardian Unkillable Engine & Infinity Gestures Always-On)
 
-            #### ✨ What's New in v1.5.3:
-            - **🛡️ Interactive Hero Shield Orb:** Large interactive central Power/Shield ring with pulse animation and haptic feedback on tap to instantly dismiss Vivo red banner!
-            - **🍱 Modern Bento Grid:** Clean 2x2 modular tiles for Developer Options shortcut, Restore Menu toggle, Dev Mode live status, and USB Debugging state.
-            - **🌊 Floating Dock Navigation:** Butter-smooth bottom pill navigation between Dev Banner Shield and Deep Cache Cleaner.
-            - **💻 Clean ADB Dialog:** Interactive ADB verified command dialog with 1-tap copy without cluttering the screen.
-            - **⚡ 100% Zero Feature Regression:** Developer Options (`development_settings_enabled = 1`), USB Debugging (`adb_enabled = 1`), and automated cache cleaning 100% INTACT!
+            #### ✨ What's New in v1.6.0:
+            - **⚡ App Guardian (Unkillable Apps Engine):**
+              - Make **ANY** installed app unkillable by Vivo background killer, Android Doze, and App Standby!
+              - **100% Reversible:** Toggle protection ON or OFF anytime with 1 tap.
+              - Multi-layer defense: Android Doze Whitelist (`dumpsys deviceidle whitelist`), High-Priority Standby Bucket (`am set-standby-bucket active`), and Unrestricted Background Ops (`appops set RUN_IN_BACKGROUND allow`).
+            - **♾️ Infinity Gestures Always-On Watchdog:**
+              - Real-time `ContentObserver` 24/7 watchdog. If Vivo SystemUI unbinds or turns off Infinity Gestures accessibility service, ToolMaster automatically re-injects and revives it in milliseconds!
+              - Screen unlock (`USER_PRESENT`) and boot auto-enforcement.
+              - 1-tap `Force Re-bind Gestures Now` button.
+            - **🧭 Sleek 3-Tab Floating Dock:**
+              - `🛡️ Dev Shield` | `⚡ Guardian` | `🧹 Cleaner`
+            - **🛡️ Dev Banner Killer & Deep Cache Cleaner 100% Intact:**
+              - Dev Mode (`development_settings_enabled = 1`) and USB Debugging (`adb_enabled = 1`) stay 100% active and untouched.
             - **🛡️ Dual Auto & Manual Modes:**
               - **Auto Mode:** Automatically purges the banner on app launch, on device boot, and in background via NotificationListenerService.
               - **Manual 1-Tap Mode:** Tap "Kill Dev Banner Now" for instant 1-tap elimination.

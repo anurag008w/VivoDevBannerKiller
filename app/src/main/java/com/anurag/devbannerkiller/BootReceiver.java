@@ -19,6 +19,10 @@ public class BootReceiver extends BroadcastReceiver {
                 DevBannerKillerService.killDevBannerViaPmClear();
                 Log.i(TAG, "Boot dev banner kill executed");
             }
+
+            // Enforce Infinity Gestures and Unkillable App protections on boot
+            AppGuardianHelper.enforceAllGuardedApps(context);
+            Log.i(TAG, "Boot App Guardian enforcement complete");
         }
     }
 }

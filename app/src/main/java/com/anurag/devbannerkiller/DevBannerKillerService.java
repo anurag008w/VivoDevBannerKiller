@@ -1,9 +1,15 @@
 package com.anurag.devbannerkiller;
 
 import android.app.Notification;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.database.ContentObserver;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
@@ -17,6 +23,9 @@ public class DevBannerKillerService extends NotificationListenerService {
     public static final String KEY_KILL_COUNT = "kill_count";
 
     private static DevBannerKillerService sInstance;
+
+    private ContentObserver mAccessibilityObserver;
+    private BroadcastReceiver mScreenUnlockReceiver;
 
     public static DevBannerKillerService getInstance() {
         return sInstance;
@@ -95,6 +104,56 @@ public class DevBannerKillerService extends NotificationListenerService {
         super.onCreate();
         sInstance = this;
         Log.d(TAG, "DevBannerKillerService created");
+
+        // 1. Register ContentObserver to watch Accessibility Settings (Infinity Gestures Watchdog)
+        try {
+            mAccessibilityObserver = new ContentObserver(new Handler(Looper.getMainLooper())) {
+                @Override
+                public void onChange(boolean selfChange) {
+                    super.onChange(selfChange);
+                    if (AppGuardianHelper.isInfinityGuardianEnabled(DevBannerKillerService.this)) {
+                        AppGuardianHelper.ensureInfinityGesturesActive(DevBannerKillerService.this);
+                    }
+                }
+            };
+            getContentResolver().registerContentObserver(
+                    Settings.Secure.getUriFor(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES),
+                    false,
+                    mAccessibilityObserver
+            );
+            getContentResolver().registerContentObserver(
+                    Settings.Secure.getUriFor(Settings.Secure.ACCESSIBILITY_ENABLED),
+                    false,
+                    mAccessibilityObserver
+            );
+            Log.i(TAG, "Infinity Gestures Guardian ContentObserver registered");
+        } catch (Exception e) {
+            Log.e(TAG, "Error registering accessibility observer: " + e.getMessage());
+        }
+
+        // 2. Register Dynamic Receiver for Screen On / Unlock to enforce guarded apps
+        try {
+            mScreenUnlockReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if (intent == null) return;
+                    String action = intent.getAction();
+                    if (Intent.ACTION_USER_PRESENT.equals(action) || Intent.ACTION_SCREEN_ON.equals(action)) {
+                        AppGuardianHelper.enforceAllGuardedApps(context);
+                    }
+                }
+            };
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(Intent.ACTION_USER_PRESENT);
+            filter.addAction(Intent.ACTION_SCREEN_ON);
+            registerReceiver(mScreenUnlockReceiver, filter);
+            Log.i(TAG, "App Guardian Screen Unlock Receiver registered");
+        } catch (Exception e) {
+            Log.e(TAG, "Error registering screen receiver: " + e.getMessage());
+        }
+
+        // 3. Initial enforcement
+        AppGuardianHelper.enforceAllGuardedApps(this);
     }
 
     @Override
@@ -102,6 +161,9 @@ public class DevBannerKillerService extends NotificationListenerService {
         super.onListenerConnected();
         sInstance = this;
         Log.d(TAG, "NotificationListenerService connected");
+
+        // Enforce guarded apps on listener connect
+        AppGuardianHelper.enforceAllGuardedApps(this);
 
         // Perform an immediate scan on connect only if auto-kill is enabled
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -122,6 +184,23 @@ public class DevBannerKillerService extends NotificationListenerService {
     public void onDestroy() {
         super.onDestroy();
         sInstance = null;
+
+        // Unregister observer
+        if (mAccessibilityObserver != null) {
+            try {
+                getContentResolver().unregisterContentObserver(mAccessibilityObserver);
+            } catch (Exception ignored) {}
+            mAccessibilityObserver = null;
+        }
+
+        // Unregister receiver
+        if (mScreenUnlockReceiver != null) {
+            try {
+                unregisterReceiver(mScreenUnlockReceiver);
+            } catch (Exception ignored) {}
+            mScreenUnlockReceiver = null;
+        }
+
         Log.d(TAG, "DevBannerKillerService destroyed");
     }
 
