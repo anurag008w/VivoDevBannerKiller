@@ -44,6 +44,10 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     private View layoutCacheSection;
 
     // Banner Section Views
+    private FrameLayout containerHeroOrb;
+    private View btnManualKill;
+    private TextView tvOrbIcon;
+    private TextView tvOrbAction;
     private SwitchCompat switchAutoKill;
     private TextView tvStatus;
     private TextView tvStatusSub;
@@ -53,12 +57,10 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     private TextView tvAdbStatus;
     private CardView cardPermission;
     private Button btnGrantPermission;
-    private Button btnManualKill;
-    private Button btnOpenDevOptions;
-    private Button btnRestoreDevOptions;
-    private Button btnKillProcess;
-    private View cardAdbHelper;
-    private Button btnCopyAdbCommand;
+    private View btnOpenDevOptions;
+    private View btnRestoreDevOptions;
+    private View btnKillProcess;
+    private View btnCopyAdbCommand;
 
     // Cache Section Views
     private TextView tvCacheStatus;
@@ -111,7 +113,11 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         layoutBannerSection = findViewById(R.id.layoutBannerSection);
         layoutCacheSection = findViewById(R.id.layoutCacheSection);
 
-        // Banner
+        // Banner Hero & Bento
+        containerHeroOrb = findViewById(R.id.containerHeroOrb);
+        btnManualKill = findViewById(R.id.btnManualKill);
+        tvOrbIcon = findViewById(R.id.tvOrbIcon);
+        tvOrbAction = findViewById(R.id.tvOrbAction);
         switchAutoKill = findViewById(R.id.switchAutoKill);
         tvStatus = findViewById(R.id.tvStatus);
         tvStatusSub = findViewById(R.id.tvStatusSub);
@@ -121,11 +127,9 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         tvAdbStatus = findViewById(R.id.tvAdbStatus);
         cardPermission = findViewById(R.id.cardPermission);
         btnGrantPermission = findViewById(R.id.btnGrantPermission);
-        btnManualKill = findViewById(R.id.btnManualKill);
         btnOpenDevOptions = findViewById(R.id.btnOpenDevOptions);
         btnRestoreDevOptions = findViewById(R.id.btnRestoreDevOptions);
         btnKillProcess = findViewById(R.id.btnKillProcess);
-        cardAdbHelper = findViewById(R.id.cardAdbHelper);
         btnCopyAdbCommand = findViewById(R.id.btnCopyAdbCommand);
 
         // Cache
@@ -159,7 +163,7 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         mPrefs.edit().putString(KEY_ACTIVE_TAB, isBannerTab ? "banner" : "cache").apply();
 
         if (isBannerTab) {
-            tabBanner.setBackgroundResource(R.drawable.bg_tab_selected);
+            tabBanner.setBackgroundResource(R.drawable.bg_bottom_tab_active);
             tabBanner.setTextColor(0xFFFFFFFF);
 
             tabCache.setBackgroundColor(android.graphics.Color.TRANSPARENT);
@@ -168,7 +172,7 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
             layoutBannerSection.setVisibility(View.VISIBLE);
             layoutCacheSection.setVisibility(View.GONE);
         } else {
-            tabCache.setBackgroundResource(R.drawable.bg_tab_selected);
+            tabCache.setBackgroundResource(R.drawable.bg_bottom_tab_active);
             tabCache.setTextColor(0xFFFFFFFF);
 
             tabBanner.setBackgroundColor(android.graphics.Color.TRANSPARENT);
@@ -191,6 +195,15 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         switchAutoKill.setOnCheckedChangeListener(mAutoKillListener);
 
         btnManualKill.setOnClickListener(v -> {
+            if (containerHeroOrb != null) {
+                containerHeroOrb.animate().scaleX(0.92f).scaleY(0.92f).setDuration(120).withEndAction(() -> {
+                    containerHeroOrb.animate().scaleX(1.0f).scaleY(1.0f).setDuration(120).start();
+                }).start();
+                try {
+                    containerHeroOrb.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+                } catch (Exception ignored) {}
+            }
+
             DevBannerKillerService.killDevBannerDirect(this);
             DevBannerKillerService service = DevBannerKillerService.getInstance();
             int count = 0;
@@ -201,22 +214,15 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
             int totalKills = mPrefs.getInt(DevBannerKillerService.KEY_KILL_COUNT, 0) + (count > 0 ? count : 1);
             mPrefs.edit().putInt(DevBannerKillerService.KEY_KILL_COUNT, totalKills).apply();
             if (tvKillCount != null) {
-                tvKillCount.setText("🚫 " + totalKills + " Blocked");
+                tvKillCount.setText(totalKills + " Blocked");
             }
 
-            Toast.makeText(this, "⚡ Dev Banner Killed (pm clear com.vivo.daemonService)!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "⚡ Vivo Red Banner Dismissed!", Toast.LENGTH_SHORT).show();
             updateBannerStatusUI();
         });
 
         if (btnCopyAdbCommand != null) {
-            btnCopyAdbCommand.setOnClickListener(v -> {
-                android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                android.content.ClipData clip = android.content.ClipData.newPlainText("ADB Command", "adb shell pm clear com.vivo.daemonService");
-                if (clipboard != null) {
-                    clipboard.setPrimaryClip(clip);
-                    Toast.makeText(this, "Copied: adb shell pm clear com.vivo.daemonService", Toast.LENGTH_SHORT).show();
-                }
-            });
+            btnCopyAdbCommand.setOnClickListener(v -> showAdbDialog());
         }
 
         btnOpenDevOptions.setOnClickListener(v -> {
@@ -253,6 +259,22 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
             android.os.Process.killProcess(android.os.Process.myPid());
             System.exit(0);
         });
+    }
+
+    private void showAdbDialog() {
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        builder.setTitle("💻 ADB Verified Killer Command");
+        builder.setMessage("Execute this command in PC / ADB shell:\n\nadb shell pm clear com.vivo.daemonService\n\n✅ Instantly clears Vivo red status pill\n✅ Developer Options & USB Debugging stay 100% active");
+        builder.setPositiveButton("📋 Copy Command", (dialog, which) -> {
+            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            android.content.ClipData clip = android.content.ClipData.newPlainText("ADB Command", "adb shell pm clear com.vivo.daemonService");
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(clip);
+                Toast.makeText(this, "Copied: adb shell pm clear com.vivo.daemonService", Toast.LENGTH_SHORT).show();
+            }
+        });
+        builder.setNegativeButton("Close", null);
+        builder.show();
     }
 
     private void setupCacheSection() {
@@ -484,71 +506,82 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         boolean hasPermission = isNotificationServiceEnabled();
         int totalKills = mPrefs.getInt(DevBannerKillerService.KEY_KILL_COUNT, 0);
         if (tvKillCount != null) {
-            tvKillCount.setText("🚫 " + totalKills + " Blocked");
+            tvKillCount.setText(totalKills + " Blocked");
         }
 
         // Live status check for Dev Mode & ADB
         try {
             int devEnabled = Settings.Global.getInt(getContentResolver(), Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0);
             if (tvDevModeStatus != null) {
-                if (devEnabled == 1) {
-                    tvDevModeStatus.setText("⚡ Dev Mode: ON");
-                    tvDevModeStatus.setTextColor(0xFF34D399);
-                } else {
-                    tvDevModeStatus.setText("⚡ Dev Mode: OFF");
-                    tvDevModeStatus.setTextColor(0xFF94A3B8);
-                }
+                tvDevModeStatus.setText(devEnabled == 1 ? "ON" : "OFF");
+                tvDevModeStatus.setTextColor(devEnabled == 1 ? 0xFF34D399 : 0xFF64748B);
             }
         } catch (Exception ignored) {}
 
         try {
             int adbEnabled = Settings.Global.getInt(getContentResolver(), Settings.Global.ADB_ENABLED, 0);
             if (tvAdbStatus != null) {
-                if (adbEnabled == 1) {
-                    tvAdbStatus.setText("🔌 USB Debug: Active");
-                    tvAdbStatus.setTextColor(0xFF38BDF8);
-                } else {
-                    tvAdbStatus.setText("🔌 USB Debug: OFF");
-                    tvAdbStatus.setTextColor(0xFF94A3B8);
-                }
+                tvAdbStatus.setText(adbEnabled == 1 ? "Active" : "OFF");
+                tvAdbStatus.setTextColor(adbEnabled == 1 ? 0xFFFBBF24 : 0xFF64748B);
             }
         } catch (Exception ignored) {}
 
         if (!hasPermission) {
             if (cardPermission != null) cardPermission.setVisibility(View.VISIBLE);
             if (tvStatus != null) {
-                tvStatus.setText("Status: Missing Permission");
-                tvStatus.setTextColor(getResources().getColor(R.color.colorError));
+                tvStatus.setText("PERMISSION NEEDED");
+                tvStatus.setTextColor(0xFFEF4444);
             }
             if (tvStatusSub != null) {
-                tvStatusSub.setText("Notification access is needed to auto-intercept Vivo banners.");
+                tvStatusSub.setText("Notification access needed to auto-block banners");
             }
             if (tvLiveBadge != null) {
                 tvLiveBadge.setText("⚠️ ACTION REQ");
                 tvLiveBadge.setTextColor(0xFFEF4444);
             }
+            if (containerHeroOrb != null) {
+                containerHeroOrb.setBackgroundResource(R.drawable.bg_shield_ring_paused);
+            }
+            if (tvOrbAction != null) {
+                tvOrbAction.setText("GRANT PERM");
+                tvOrbAction.setTextColor(0xFFEF4444);
+            }
         } else {
             if (cardPermission != null) cardPermission.setVisibility(View.GONE);
             boolean isAuto = mPrefs.getBoolean(DevBannerKillerService.KEY_AUTO_KILL, true);
             if (isAuto) {
+                if (containerHeroOrb != null) {
+                    containerHeroOrb.setBackgroundResource(R.drawable.bg_shield_ring_active);
+                }
                 if (tvStatus != null) {
-                    tvStatus.setText("Protected & Auto-Kill Running");
+                    tvStatus.setText("PROTECTION ACTIVE");
                     tvStatus.setTextColor(0xFF34D399);
                 }
                 if (tvStatusSub != null) {
-                    tvStatusSub.setText("Vivo 'Dev mode' status bar banner is actively blocked.");
+                    tvStatusSub.setText("Vivo red 'Dev mode' banner is suppressed");
+                }
+                if (tvOrbAction != null) {
+                    tvOrbAction.setText("TAP TO KILL");
+                    tvOrbAction.setTextColor(0xFF34D399);
                 }
                 if (tvLiveBadge != null) {
                     tvLiveBadge.setText("● LIVE");
                     tvLiveBadge.setTextColor(0xFF10B981);
                 }
             } else {
+                if (containerHeroOrb != null) {
+                    containerHeroOrb.setBackgroundResource(R.drawable.bg_shield_ring_paused);
+                }
                 if (tvStatus != null) {
-                    tvStatus.setText("Auto-Kill Paused (Off)");
-                    tvStatus.setTextColor(0xFFFBBF24);
+                    tvStatus.setText("PROTECTION PAUSED");
+                    tvStatus.setTextColor(0xFFF59E0B);
                 }
                 if (tvStatusSub != null) {
-                    tvStatusSub.setText("Auto-kill is OFF. Tap switch to enable, or use 1-Tap Manual Kill.");
+                    tvStatusSub.setText("Auto-kill paused. Tap circle or switch to resume.");
+                }
+                if (tvOrbAction != null) {
+                    tvOrbAction.setText("TAP TO KILL");
+                    tvOrbAction.setTextColor(0xFFF59E0B);
                 }
                 if (tvLiveBadge != null) {
                     tvLiveBadge.setText("○ PAUSED");

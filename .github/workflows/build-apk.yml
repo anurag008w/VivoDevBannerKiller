@@ -50,16 +50,17 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.5.2-release' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Vivo ToolMaster v1.5.2' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.5.3-release' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Vivo ToolMaster v1.5.3' }}
           body: |
-            ### 🚀 Vivo ToolMaster v1.5.2 (Revamped Interactive UI, Hero Dashboard & Cache Tab Persistence)
+            ### 🚀 Vivo ToolMaster v1.5.3 (Interactive Hero Shield Orb, Modern Bento Grid & Floating Dock)
 
-            #### ✨ What's New in v1.5.2:
-            - **🎨 Hero Status Dashboard Card:** Live status badge (`● LIVE` / `○ PAUSED`), Dev Mode ON chip, USB Debug Active chip, and dynamic kill counter.
-            - **🔄 Cache Cleaner Tab Persistence Fix:** Stay on Deep Cache Cleaner tab seamlessly after automated cleaning finishes (fixed intent handling and tab state persistence).
-            - **⚙️ Auto-Kill Switch Sync Fix:** Rock-solid toggle state handling preventing switch desync or accidental re-activation on resume.
-            - **⚡ 100% Verified Dev Banner Killer Engine:** Uses verified `pm clear com.vivo.daemonService` to eliminate the red status bar pill immediately while keeping Developer Options (`development_settings_enabled = 1`) and USB Debugging (`adb_enabled = 1`) 100% ACTIVE!
+            #### ✨ What's New in v1.5.3:
+            - **🛡️ Interactive Hero Shield Orb:** Large interactive central Power/Shield ring with pulse animation and haptic feedback on tap to instantly dismiss Vivo red banner!
+            - **🍱 Modern Bento Grid:** Clean 2x2 modular tiles for Developer Options shortcut, Restore Menu toggle, Dev Mode live status, and USB Debugging state.
+            - **🌊 Floating Dock Navigation:** Butter-smooth bottom pill navigation between Dev Banner Shield and Deep Cache Cleaner.
+            - **💻 Clean ADB Dialog:** Interactive ADB verified command dialog with 1-tap copy without cluttering the screen.
+            - **⚡ 100% Zero Feature Regression:** Developer Options (`development_settings_enabled = 1`), USB Debugging (`adb_enabled = 1`), and automated cache cleaning 100% INTACT!
             - **🛡️ Dual Auto & Manual Modes:**
               - **Auto Mode:** Automatically purges the banner on app launch, on device boot, and in background via NotificationListenerService.
               - **Manual 1-Tap Mode:** Tap "Kill Dev Banner Now" for instant 1-tap elimination.

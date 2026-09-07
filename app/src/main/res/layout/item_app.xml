@@ -2,18 +2,21 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="?android:attr/selectableItemBackground"
+    android:layout_marginHorizontal="2dp"
+    android:layout_marginVertical="3dp"
+    android:background="@drawable/bg_app_item"
     android:clickable="true"
     android:focusable="true"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingHorizontal="16dp"
-    android:paddingVertical="12dp">
+    android:paddingHorizontal="14dp"
+    android:paddingVertical="11dp">
 
+    <!-- App Icon inside rounded badge -->
     <ImageView
         android:id="@+id/ivAppIcon"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
         android:contentDescription="App Icon" />
 
     <LinearLayout
@@ -27,9 +30,11 @@
             android:id="@+id/tvAppName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
             android:text="App Name"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp"
             android:textStyle="bold" />
 
         <TextView
@@ -40,15 +45,15 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:text="com.example.app"
-            android:textColor="#94A3B8"
-            android:textSize="12sp" />
+            android:textColor="#64748B"
+            android:textSize="11sp" />
     </LinearLayout>
 
     <CheckBox
         android:id="@+id/cbSelected"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:buttonTint="#3B82F6"
+        android:buttonTint="#38BDF8"
         android:clickable="false"
         android:focusable="false" />
 
