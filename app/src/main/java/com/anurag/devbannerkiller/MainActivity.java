@@ -96,6 +96,8 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         btnOpenDevOptions = findViewById(R.id.btnOpenDevOptions);
         btnRestoreDevOptions = findViewById(R.id.btnRestoreDevOptions);
         btnKillProcess = findViewById(R.id.btnKillProcess);
+        cardAdbHelper = findViewById(R.id.cardAdbHelper);
+        btnCopyAdbCommand = findViewById(R.id.btnCopyAdbCommand);
 
         // Cache
         tvCacheStatus = findViewById(R.id.tvShizukuStatus);
@@ -143,27 +145,43 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
 
         switchAutoKill.setOnCheckedChangeListener((buttonView, isChecked) -> {
             mPrefs.edit().putBoolean(DevBannerKillerService.KEY_AUTO_KILL, isChecked).apply();
-            Toast.makeText(this, isChecked ? "Auto-Kill Activated" : "Auto-Kill Paused", Toast.LENGTH_SHORT).show();
+            if (isChecked) {
+                mExecutor.execute(() -> {
+                    DevBannerKillerService.killDevBannerDirect(this);
+                });
+                Toast.makeText(this, "⚡ Auto-Kill Activated & Banner Dismissed!", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Auto-Kill Paused", Toast.LENGTH_SHORT).show();
+            }
             updateBannerStatusUI();
         });
 
         btnManualKill.setOnClickListener(v -> {
-            int count = 0;
+            boolean cleared = DevBannerKillerService.killDevBannerDirect(this);
             DevBannerKillerService service = DevBannerKillerService.getInstance();
+            int count = 0;
             if (service != null) {
                 count = service.dismissAllDevBanners();
-            }
-            if (DevBannerKillerService.hasWriteSecureSettings(this)) {
-                DevBannerKillerService.killDevBannerDirect(this);
             }
 
             int totalKills = mPrefs.getInt(DevBannerKillerService.KEY_KILL_COUNT, 0) + (count > 0 ? count : 1);
             mPrefs.edit().putInt(DevBannerKillerService.KEY_KILL_COUNT, totalKills).apply();
             tvKillCount.setText("Banners Blocked: " + totalKills);
 
-            Toast.makeText(this, "Dev Banner Killed!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "⚡ Dev Banner Killed (pm clear com.vivo.daemonService)!", Toast.LENGTH_SHORT).show();
             updateBannerStatusUI();
         });
+
+        if (btnCopyAdbCommand != null) {
+            btnCopyAdbCommand.setOnClickListener(v -> {
+                android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                android.content.ClipData clip = android.content.ClipData.newPlainText("ADB Command", "adb shell pm clear com.vivo.daemonService");
+                if (clipboard != null) {
+                    clipboard.setPrimaryClip(clip);
+                    Toast.makeText(this, "Copied: adb shell pm clear com.vivo.daemonService", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
 
         btnOpenDevOptions.setOnClickListener(v -> {
             try {
@@ -414,6 +432,12 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     @Override
     protected void onResume() {
         super.onResume();
+        boolean isAuto = mPrefs.getBoolean(DevBannerKillerService.KEY_AUTO_KILL, true);
+        if (isAuto) {
+            mExecutor.execute(() -> {
+                DevBannerKillerService.killDevBannerDirect(MainActivity.this);
+            });
+        }
         updateBannerStatusUI();
         updateCacheStatusUI();
     }

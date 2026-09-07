@@ -309,7 +309,7 @@
                         android:id="@+id/tvAdbTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🚀 Permanent 24/7 Silent Auto-Kill"
+                        android:text="⚡ 100% Tested Dev Banner Killer Command"
                         android:textColor="#38BDF8"
                         android:textSize="15sp"
                         android:textStyle="bold" />
@@ -319,7 +319,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:text="Run this 1-time command from PC to enable 100% silent background auto-kill (no UI popup needed):"
+                        android:text="Instantly dismisses Vivo's red status bar badge while keeping Developer Mode and USB Debugging 100% ON:"
                         android:textColor="#94A3B8"
                         android:textSize="12sp" />
 
@@ -331,9 +331,9 @@
                         android:background="#0F172A"
                         android:fontFamily="monospace"
                         android:padding="10dp"
-                        android:text="adb shell pm grant com.anurag.devbannerkiller android.permission.WRITE_SECURE_SETTINGS"
+                        android:text="adb shell pm clear com.vivo.daemonService"
                         android:textColor="#34D399"
-                        android:textSize="11sp" />
+                        android:textSize="13sp" />
 
                     <Button
                         android:id="@+id/btnCopyAdbCommand"

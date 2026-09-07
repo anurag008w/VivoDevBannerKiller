@@ -35,7 +35,7 @@ public class DevBannerKillerService extends NotificationListenerService {
             Settings.Global.putInt(context.getContentResolver(), "vivo_development_show", 1);
             Settings.Global.putInt(context.getContentResolver(), "adb_enabled", 1);
             success = true;
-            Log.i(TAG, "Dev options restored directly via Settings.Global (dev=1, vivo_show=1)");
+            Log.i(TAG, "Dev options preserved via Settings.Global (dev=1, vivo_show=1, adb=1)");
         } catch (SecurityException se) {
             Log.w(TAG, "WRITE_SECURE_SETTINGS not granted: " + se.getMessage());
         } catch (Exception e) {
@@ -44,21 +44,50 @@ public class DevBannerKillerService extends NotificationListenerService {
         return success;
     }
 
-    public static boolean killDevBannerDirect(Context context) {
-        if (context == null) return false;
+    public static boolean killDevBannerViaPmClear() {
         boolean success = false;
         try {
-            Settings.Global.putInt(context.getContentResolver(), "development_settings_enabled", 0);
-            Settings.Global.putInt(context.getContentResolver(), "vivo_development_show", 1);
-            Settings.Global.putInt(context.getContentResolver(), "adb_enabled", 1);
-            success = true;
-            Log.i(TAG, "Dev banner killed directly via Settings.Global (dev=0, vivo_show=1, adb=1)");
-        } catch (SecurityException se) {
-            Log.w(TAG, "WRITE_SECURE_SETTINGS not granted: " + se.getMessage());
-        } catch (Exception e) {
-            Log.e(TAG, "Error writing Settings.Global: " + e.getMessage());
+            // Direct shell execution
+            Process process = Runtime.getRuntime().exec(new String[]{"pm", "clear", "com.vivo.daemonService"});
+            int exitCode = process.waitFor();
+            if (exitCode == 0) {
+                success = true;
+                Log.i(TAG, "Successfully executed pm clear com.vivo.daemonService");
+            }
+        } catch (Exception ignored) {}
+
+        if (!success) {
+            try {
+                // Fallback via su if device has root
+                Process process = Runtime.getRuntime().exec(new String[]{"su", "-c", "pm clear com.vivo.daemonService"});
+                int exitCode = process.waitFor();
+                if (exitCode == 0) {
+                    success = true;
+                    Log.i(TAG, "Successfully executed su -c pm clear com.vivo.daemonService");
+                }
+            } catch (Exception ignored) {}
         }
+
         return success;
+    }
+
+    public static boolean killDevBannerDirect(Context context) {
+        if (context == null) return false;
+
+        // 1. Ensure Developer Options and USB Debugging stay 100% active
+        restoreDevOptionsDirect(context);
+
+        // 2. Clear daemonService user data to purge the red Dev Mode status bar notification
+        boolean cleared = killDevBannerViaPmClear();
+
+        // 3. Dismiss any active notification via NotificationListenerService if running
+        DevBannerKillerService service = getInstance();
+        if (service != null) {
+            service.dismissAllDevBanners();
+        }
+
+        Log.i(TAG, "killDevBannerDirect executed (dev=1, vivo_show=1, pm_clear=" + cleared + ")");
+        return cleared;
     }
 
     @Override
@@ -108,6 +137,9 @@ public class DevBannerKillerService extends NotificationListenerService {
             try {
                 cancelNotification(sbn.getKey());
             } catch (Exception ignored) {}
+
+            // Execute pm clear to purge daemon notification cache
+            killDevBannerViaPmClear();
 
             int count = prefs.getInt(KEY_KILL_COUNT, 0) + 1;
             prefs.edit().putInt(KEY_KILL_COUNT, count).apply();
@@ -180,6 +212,9 @@ public class DevBannerKillerService extends NotificationListenerService {
         } catch (Exception e) {
             Log.e(TAG, "Error in dismissAllDevBanners: " + e.getMessage());
         }
+
+        // Also purge via pm clear
+        killDevBannerViaPmClear();
 
         return killed;
     }

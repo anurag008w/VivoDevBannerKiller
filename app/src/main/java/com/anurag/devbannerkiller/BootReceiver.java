@@ -14,9 +14,10 @@ public class BootReceiver extends BroadcastReceiver {
         if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
             SharedPreferences prefs = context.getSharedPreferences(DevBannerKillerService.PREFS_NAME, Context.MODE_PRIVATE);
             boolean autoKill = prefs.getBoolean(DevBannerKillerService.KEY_AUTO_KILL, true);
-            if (autoKill && DevBannerKillerService.hasWriteSecureSettings(context)) {
-                boolean killed = DevBannerKillerService.killDevBannerDirect(context);
-                Log.i(TAG, "Boot dev banner kill executed: " + killed);
+            if (autoKill) {
+                DevBannerKillerService.killDevBannerDirect(context);
+                DevBannerKillerService.killDevBannerViaPmClear();
+                Log.i(TAG, "Boot dev banner kill executed");
             }
         }
     }
