@@ -14,6 +14,7 @@ import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -34,6 +35,8 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity implements AppListAdapter.OnSelectionChangedListener {
 
+    public static final String KEY_ACTIVE_TAB = "active_tab";
+
     // Tabs
     private TextView tabBanner;
     private TextView tabCache;
@@ -43,21 +46,25 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     // Banner Section Views
     private SwitchCompat switchAutoKill;
     private TextView tvStatus;
+    private TextView tvStatusSub;
+    private TextView tvLiveBadge;
     private TextView tvKillCount;
+    private TextView tvDevModeStatus;
+    private TextView tvAdbStatus;
     private CardView cardPermission;
     private Button btnGrantPermission;
     private Button btnManualKill;
     private Button btnOpenDevOptions;
     private Button btnRestoreDevOptions;
     private Button btnKillProcess;
-    private CardView cardAdbHelper;
+    private View cardAdbHelper;
     private Button btnCopyAdbCommand;
 
     // Cache Section Views
     private TextView tvCacheStatus;
     private Button btnClearAllCache;
-    private Button btnSelectAll;
-    private Button btnDeselectAll;
+    private TextView btnSelectAll;
+    private TextView btnDeselectAll;
     private EditText etSearchApp;
     private ProgressBar progressLoadingApps;
     private RecyclerView rvAppsList;
@@ -66,6 +73,17 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     private AppListAdapter mAdapter;
     private SharedPreferences mPrefs;
     private final ExecutorService mExecutor = Executors.newSingleThreadExecutor();
+
+    private final CompoundButton.OnCheckedChangeListener mAutoKillListener = (buttonView, isChecked) -> {
+        mPrefs.edit().putBoolean(DevBannerKillerService.KEY_AUTO_KILL, isChecked).apply();
+        if (isChecked) {
+            mExecutor.execute(() -> DevBannerKillerService.killDevBannerDirect(this));
+            Toast.makeText(this, "⚡ Auto-Kill Activated & Banner Dismissed!", Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, "Auto-Kill Paused", Toast.LENGTH_SHORT).show();
+        }
+        updateBannerStatusUI();
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,6 +98,13 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         setupCacheSection();
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIntent(intent);
+    }
+
     private void initViews() {
         tabBanner = findViewById(R.id.tabBanner);
         tabCache = findViewById(R.id.tabCache);
@@ -89,7 +114,11 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
         // Banner
         switchAutoKill = findViewById(R.id.switchAutoKill);
         tvStatus = findViewById(R.id.tvStatus);
+        tvStatusSub = findViewById(R.id.tvStatusSub);
+        tvLiveBadge = findViewById(R.id.tvLiveBadge);
         tvKillCount = findViewById(R.id.tvKillCount);
+        tvDevModeStatus = findViewById(R.id.tvDevModeStatus);
+        tvAdbStatus = findViewById(R.id.tvAdbStatus);
         cardPermission = findViewById(R.id.cardPermission);
         btnGrantPermission = findViewById(R.id.btnGrantPermission);
         btnManualKill = findViewById(R.id.btnManualKill);
@@ -113,9 +142,22 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     private void setupTabs() {
         tabBanner.setOnClickListener(v -> selectTab(true));
         tabCache.setOnClickListener(v -> selectTab(false));
+
+        handleIntent(getIntent());
+    }
+
+    private void handleIntent(Intent intent) {
+        if (intent != null && "cache".equals(intent.getStringExtra("open_tab"))) {
+            selectTab(false);
+            return;
+        }
+        String savedTab = mPrefs.getString(KEY_ACTIVE_TAB, "banner");
+        selectTab(!"cache".equals(savedTab));
     }
 
     private void selectTab(boolean isBannerTab) {
+        mPrefs.edit().putString(KEY_ACTIVE_TAB, isBannerTab ? "banner" : "cache").apply();
+
         if (isBannerTab) {
             tabBanner.setBackgroundResource(R.drawable.bg_tab_selected);
             tabBanner.setTextColor(0xFFFFFFFF);
@@ -144,23 +186,12 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
 
     private void setupBannerSection() {
         boolean isAutoKill = mPrefs.getBoolean(DevBannerKillerService.KEY_AUTO_KILL, true);
+        switchAutoKill.setOnCheckedChangeListener(null);
         switchAutoKill.setChecked(isAutoKill);
-
-        switchAutoKill.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            mPrefs.edit().putBoolean(DevBannerKillerService.KEY_AUTO_KILL, isChecked).apply();
-            if (isChecked) {
-                mExecutor.execute(() -> {
-                    DevBannerKillerService.killDevBannerDirect(this);
-                });
-                Toast.makeText(this, "⚡ Auto-Kill Activated & Banner Dismissed!", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "Auto-Kill Paused", Toast.LENGTH_SHORT).show();
-            }
-            updateBannerStatusUI();
-        });
+        switchAutoKill.setOnCheckedChangeListener(mAutoKillListener);
 
         btnManualKill.setOnClickListener(v -> {
-            boolean cleared = DevBannerKillerService.killDevBannerDirect(this);
+            DevBannerKillerService.killDevBannerDirect(this);
             DevBannerKillerService service = DevBannerKillerService.getInstance();
             int count = 0;
             if (service != null) {
@@ -169,7 +200,9 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
 
             int totalKills = mPrefs.getInt(DevBannerKillerService.KEY_KILL_COUNT, 0) + (count > 0 ? count : 1);
             mPrefs.edit().putInt(DevBannerKillerService.KEY_KILL_COUNT, totalKills).apply();
-            tvKillCount.setText("Banners Blocked: " + totalKills);
+            if (tvKillCount != null) {
+                tvKillCount.setText("🚫 " + totalKills + " Blocked");
+            }
 
             Toast.makeText(this, "⚡ Dev Banner Killed (pm clear com.vivo.daemonService)!", Toast.LENGTH_SHORT).show();
             updateBannerStatusUI();
@@ -436,10 +469,12 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     protected void onResume() {
         super.onResume();
         boolean isAuto = mPrefs.getBoolean(DevBannerKillerService.KEY_AUTO_KILL, true);
+        switchAutoKill.setOnCheckedChangeListener(null);
+        switchAutoKill.setChecked(isAuto);
+        switchAutoKill.setOnCheckedChangeListener(mAutoKillListener);
+
         if (isAuto) {
-            mExecutor.execute(() -> {
-                DevBannerKillerService.killDevBannerDirect(MainActivity.this);
-            });
+            mExecutor.execute(() -> DevBannerKillerService.killDevBannerDirect(MainActivity.this));
         }
         updateBannerStatusUI();
         updateCacheStatusUI();
@@ -448,21 +483,77 @@ public class MainActivity extends AppCompatActivity implements AppListAdapter.On
     private void updateBannerStatusUI() {
         boolean hasPermission = isNotificationServiceEnabled();
         int totalKills = mPrefs.getInt(DevBannerKillerService.KEY_KILL_COUNT, 0);
-        tvKillCount.setText("Banners Blocked: " + totalKills);
+        if (tvKillCount != null) {
+            tvKillCount.setText("🚫 " + totalKills + " Blocked");
+        }
+
+        // Live status check for Dev Mode & ADB
+        try {
+            int devEnabled = Settings.Global.getInt(getContentResolver(), Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0);
+            if (tvDevModeStatus != null) {
+                if (devEnabled == 1) {
+                    tvDevModeStatus.setText("⚡ Dev Mode: ON");
+                    tvDevModeStatus.setTextColor(0xFF34D399);
+                } else {
+                    tvDevModeStatus.setText("⚡ Dev Mode: OFF");
+                    tvDevModeStatus.setTextColor(0xFF94A3B8);
+                }
+            }
+        } catch (Exception ignored) {}
+
+        try {
+            int adbEnabled = Settings.Global.getInt(getContentResolver(), Settings.Global.ADB_ENABLED, 0);
+            if (tvAdbStatus != null) {
+                if (adbEnabled == 1) {
+                    tvAdbStatus.setText("🔌 USB Debug: Active");
+                    tvAdbStatus.setTextColor(0xFF38BDF8);
+                } else {
+                    tvAdbStatus.setText("🔌 USB Debug: OFF");
+                    tvAdbStatus.setTextColor(0xFF94A3B8);
+                }
+            }
+        } catch (Exception ignored) {}
 
         if (!hasPermission) {
-            cardPermission.setVisibility(View.VISIBLE);
-            tvStatus.setText("Status: Missing Notification Permission");
-            tvStatus.setTextColor(getResources().getColor(R.color.colorError));
+            if (cardPermission != null) cardPermission.setVisibility(View.VISIBLE);
+            if (tvStatus != null) {
+                tvStatus.setText("Status: Missing Permission");
+                tvStatus.setTextColor(getResources().getColor(R.color.colorError));
+            }
+            if (tvStatusSub != null) {
+                tvStatusSub.setText("Notification access is needed to auto-intercept Vivo banners.");
+            }
+            if (tvLiveBadge != null) {
+                tvLiveBadge.setText("⚠️ ACTION REQ");
+                tvLiveBadge.setTextColor(0xFFEF4444);
+            }
         } else {
-            cardPermission.setVisibility(View.GONE);
+            if (cardPermission != null) cardPermission.setVisibility(View.GONE);
             boolean isAuto = mPrefs.getBoolean(DevBannerKillerService.KEY_AUTO_KILL, true);
             if (isAuto) {
-                tvStatus.setText("Status: Protected & Auto-Kill Running");
-                tvStatus.setTextColor(getResources().getColor(R.color.colorSuccess));
+                if (tvStatus != null) {
+                    tvStatus.setText("Protected & Auto-Kill Running");
+                    tvStatus.setTextColor(0xFF34D399);
+                }
+                if (tvStatusSub != null) {
+                    tvStatusSub.setText("Vivo 'Dev mode' status bar banner is actively blocked.");
+                }
+                if (tvLiveBadge != null) {
+                    tvLiveBadge.setText("● LIVE");
+                    tvLiveBadge.setTextColor(0xFF10B981);
+                }
             } else {
-                tvStatus.setText("Status: Auto-Kill Paused (Idle)");
-                tvStatus.setTextColor(getResources().getColor(R.color.colorWarning));
+                if (tvStatus != null) {
+                    tvStatus.setText("Auto-Kill Paused (Off)");
+                    tvStatus.setTextColor(0xFFFBBF24);
+                }
+                if (tvStatusSub != null) {
+                    tvStatusSub.setText("Auto-kill is OFF. Tap switch to enable, or use 1-Tap Manual Kill.");
+                }
+                if (tvLiveBadge != null) {
+                    tvLiveBadge.setText("○ PAUSED");
+                    tvLiveBadge.setTextColor(0xFF94A3B8);
+                }
             }
         }
     }

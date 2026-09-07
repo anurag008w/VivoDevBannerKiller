@@ -3,43 +3,68 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0F172A"
+    android:background="#0B0F19"
     android:orientation="vertical">
 
     <!-- Top App Bar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#1E293B"
+        android:background="#131B2E"
+        android:elevation="6dp"
         android:orientation="vertical"
         android:paddingHorizontal="20dp"
-        android:paddingTop="16dp"
-        android:paddingBottom="12dp">
+        android:paddingTop="18dp"
+        android:paddingBottom="14dp">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Vivo ToolMaster"
-            android:textColor="#FFFFFF"
-            android:textSize="22sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="DevBanner Killer &amp; Deep Cache Cleaner"
-            android:textColor="#94A3B8"
-            android:textSize="13sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🛡️"
+                android:textSize="22sp" />
 
-        <!-- Tab Segment Buttons -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-black"
+                    android:text="Vivo ToolMaster"
+                    android:textColor="#FFFFFF"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="DevBanner Shield &amp; Deep Cache Cleaner"
+                    android:textColor="#94A3B8"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Tab Segment Switcher -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="44dp"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="14dp"
             android:background="@drawable/bg_tab_container"
             android:orientation="horizontal"
-            android:padding="4dp">
+            android:padding="3dp">
 
             <TextView
                 android:id="@+id/tabBanner"
@@ -49,6 +74,7 @@
                 android:background="@drawable/bg_tab_selected"
                 android:clickable="true"
                 android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackground"
                 android:gravity="center"
                 android:text="🛡️ Dev Banner"
                 android:textColor="#FFFFFF"
@@ -63,8 +89,9 @@
                 android:background="@android:color/transparent"
                 android:clickable="true"
                 android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackground"
                 android:gravity="center"
-                android:text="🧹 Cache Cleaner"
+                android:text="🧹 Deep Cache"
                 android:textColor="#94A3B8"
                 android:textSize="13sp"
                 android:textStyle="bold" />
@@ -77,13 +104,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true"
+        android:overScrollMode="never"
         android:visibility="visible">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:padding="16dp">
 
             <!-- Permission Card (Shown if permission missing) -->
             <androidx.cardview.widget.CardView
@@ -92,7 +120,7 @@
                 android:layout_height="wrap_content"
                 android:visibility="gone"
                 app:cardBackgroundColor="#7F1D1D"
-                app:cardCornerRadius="16dp"
+                app:cardCornerRadius="18dp"
                 app:cardElevation="4dp">
 
                 <LinearLayout
@@ -104,251 +132,313 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="⚠️ Permission Required"
+                        android:text="⚠️ Notification Permission Required"
                         android:textColor="#FCA5A5"
-                        android:textSize="16sp"
+                        android:textSize="15sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:text="Notification Access is required so the app can intercept and block Vivo's Dev Mode banner."
+                        android:text="Allow Notification Access so ToolMaster can silently block Vivo's Dev Mode banner."
                         android:textColor="#FEE2E2"
-                        android:textSize="13sp" />
+                        android:textSize="12sp" />
 
                     <Button
                         android:id="@+id/btnGrantPermission"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="46dp"
                         android:layout_marginTop="12dp"
                         android:backgroundTint="#EF4444"
                         android:text="Grant Notification Access"
+                        android:textAllCaps="false"
                         android:textColor="#FFFFFF"
                         android:textStyle="bold" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- Status Card -->
-            <androidx.cardview.widget.CardView
+            <!-- Hero Status Dashboard Card -->
+            <LinearLayout
+                android:id="@+id/cardHeroStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                app:cardBackgroundColor="#1E293B"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:id="@+id/tvStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Status: Checking..."
-                        android:textColor="#22C55E"
-                        android:textSize="15sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvKillCount"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="Banners Blocked: 0"
-                        android:textColor="#E2E8F0"
-                        android:textSize="14sp" />
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- Auto-Kill Toggle Card -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                app:cardBackgroundColor="#1E293B"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp">
+                android:background="@drawable/bg_hero_card"
+                android:orientation="vertical"
+                android:padding="18dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Auto-Kill Dev Banner"
-                            android:textColor="#FFFFFF"
-                            android:textSize="16sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="Automatically block in background"
-                            android:textColor="#94A3B8"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-
-                    <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/switchAutoKill"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- Manual Actions Card -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                app:cardBackgroundColor="#1E293B"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
+                    android:orientation="horizontal">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Manual Controls"
-                        android:textColor="#FFFFFF"
+                        android:text="✨"
+                        android:textSize="20sp" />
+
+                    <TextView
+                        android:id="@+id/tvStatus"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:text="Protected &amp; Auto-Kill Running"
+                        android:textColor="#34D399"
                         android:textSize="16sp"
                         android:textStyle="bold" />
 
-                    <!-- Manual Trigger Button -->
-                    <Button
-                        android:id="@+id/btnManualKill"
-                        android:layout_width="match_parent"
-                        android:layout_height="52dp"
-                        android:layout_marginTop="12dp"
-                        android:backgroundTint="#3B82F6"
-                        android:text="⚡ Kill Dev Banner Now (1-Tap)"
-                        android:textColor="#FFFFFF"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <!-- Open Developer Options Directly -->
-                    <Button
-                        android:id="@+id/btnOpenDevOptions"
-                        android:layout_width="match_parent"
-                        android:layout_height="52dp"
-                        android:layout_marginTop="10dp"
-                        android:backgroundTint="#0EA5E9"
-                        android:text="🛠️ Open Developer Options"
-                        android:textColor="#FFFFFF"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <!-- Restore Developer Mode in Settings -->
-                    <Button
-                        android:id="@+id/btnRestoreDevOptions"
-                        android:layout_width="match_parent"
-                        android:layout_height="52dp"
-                        android:layout_marginTop="10dp"
-                        android:backgroundTint="#10B981"
-                        android:text="🔄 Restore Developer Mode (Settings Menu)"
-                        android:textColor="#FFFFFF"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <!-- Kill Process Button (0 RAM) -->
-                    <Button
-                        android:id="@+id/btnKillProcess"
-                        android:layout_width="match_parent"
-                        android:layout_height="52dp"
-                        android:layout_marginTop="10dp"
-                        android:backgroundTint="#475569"
-                        android:text="🛑 Stop App Process (0 MB RAM)"
-                        android:textColor="#FFFFFF"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
                     <TextView
+                        android:id="@+id/tvLiveBadge"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="Tap 'Stop App Process' whenever you want to completely exit without keeping background RAM."
-                        android:textColor="#64748B"
-                        android:textSize="11sp" />
+                        android:background="@drawable/bg_chip"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="4dp"
+                        android:text="● LIVE"
+                        android:textColor="#10B981"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
 
-            <!-- 24/7 Permanent Background Auto-Kill Card (ADB Command) -->
-            <androidx.cardview.widget.CardView
-                android:id="@+id/cardAdbHelper"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                app:cardBackgroundColor="#1E293B"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp">
+                <TextView
+                    android:id="@+id/tvStatusSub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="Vivo 'Dev mode' status bar banner is actively blocked."
+                    android:textColor="#CBD5E1"
+                    android:textSize="12sp" />
 
+                <!-- Chips Row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
+                    android:layout_marginTop="14dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
                     <TextView
-                        android:id="@+id/tvAdbTitle"
+                        android:id="@+id/tvKillCount"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="⚡ 100% Tested Dev Banner Killer Command"
+                        android:background="@drawable/bg_chip"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="6dp"
+                        android:text="🚫 1 Blocked"
                         android:textColor="#38BDF8"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvDevModeStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_chip"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="6dp"
+                        android:text="⚡ Dev Mode: ON"
+                        android:textColor="#34D399"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvAdbStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_chip"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="6dp"
+                        android:text="🔌 USB Debug: Active"
+                        android:textColor="#FBBF24"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Auto-Kill Toggle Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🛡️"
+                    android:textSize="22sp" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Auto-Kill Dev Banner"
+                        android:textColor="#FFFFFF"
                         android:textSize="15sp"
                         android:textStyle="bold" />
 
                     <TextView
-                        android:id="@+id/tvAdbDesc"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Instantly dismisses Vivo's red status bar badge while keeping Developer Mode and USB Debugging 100% ON:"
+                        android:layout_marginTop="2dp"
+                        android:text="Suppresses badge on boot and in real-time"
                         android:textColor="#94A3B8"
                         android:textSize="12sp" />
+                </LinearLayout>
 
-                    <TextView
-                        android:id="@+id/tvAdbCommand"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:background="#0F172A"
-                        android:fontFamily="monospace"
-                        android:padding="10dp"
-                        android:text="adb shell pm clear com.vivo.daemonService"
-                        android:textColor="#34D399"
-                        android:textSize="13sp" />
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switchAutoKill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <!-- Quick Controls Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚡ Action Controls"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <!-- Hero Primary Button -->
+                <Button
+                    android:id="@+id/btnManualKill"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_btn_primary"
+                    android:text="⚡ KILL DEV BANNER NOW (1-TAP)"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <!-- 2-Column Action Grid -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:orientation="horizontal">
 
                     <Button
-                        android:id="@+id/btnCopyAdbCommand"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="44dp"
-                        android:layout_marginTop="8dp"
-                        android:text="📋 Copy ADB Command"
+                        android:id="@+id/btnOpenDevOptions"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_marginEnd="5dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_btn_secondary"
+                        android:text="🛠️ Dev Options"
+                        android:textAllCaps="false"
                         android:textColor="#38BDF8"
-                        android:textSize="12sp"
-                        app:strokeColor="#38BDF8" />
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnRestoreDevOptions"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="5dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_btn_secondary"
+                        android:text="🔄 Restore Menu"
+                        android:textAllCaps="false"
+                        android:textColor="#34D399"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
-            </androidx.cardview.widget.CardView>
+
+                <!-- Exit App Process Button -->
+                <Button
+                    android:id="@+id/btnKillProcess"
+                    android:layout_width="match_parent"
+                    android:layout_height="46dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_btn_secondary"
+                    android:text="🛑 Exit &amp; Free RAM (0 MB)"
+                    android:textAllCaps="false"
+                    android:textColor="#94A3B8"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- Terminal Helper Card -->
+            <LinearLayout
+                android:id="@+id/cardAdbHelper"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/tvAdbTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="💻 Verified ADB Command"
+                    android:textColor="#38BDF8"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvAdbDesc"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="Dismisses Vivo's red pill while keeping Developer Mode 100% active:"
+                    android:textColor="#94A3B8"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tvAdbCommand"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_code_box"
+                    android:fontFamily="monospace"
+                    android:padding="12dp"
+                    android:text="adb shell pm clear com.vivo.daemonService"
+                    android:textColor="#34D399"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnCopyAdbCommand"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_btn_secondary"
+                    android:text="📋 Copy ADB Command"
+                    android:textAllCaps="false"
+                    android:textColor="#38BDF8"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="20dp" />
 
         </LinearLayout>
     </ScrollView>
@@ -363,64 +453,61 @@
         android:visibility="gone">
 
         <!-- 1-Click All Cache Card -->
-        <androidx.cardview.widget.CardView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardBackgroundColor="#1E293B"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp">
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="16dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Deep Cache Engine"
-                        android:textColor="#FFFFFF"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvShizukuStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Shizuku: Checking..."
-                        android:textColor="#22C55E"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
                 <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="⚡ Deep Cache Engine"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvShizukuStatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Instantly clean gigabytes of hidden app cache system-wide."
-                    android:textColor="#94A3B8"
-                    android:textSize="12sp" />
-
-                <Button
-                    android:id="@+id/btnClearAllCache"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="12dp"
-                    android:backgroundTint="#10B981"
-                    android:text="⚡ Clear ALL Apps Cache (1-Click)"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
+                    android:background="@drawable/bg_chip"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="4dp"
+                    android:text="Ready ✅"
+                    android:textColor="#22C55E"
+                    android:textSize="11sp"
                     android:textStyle="bold" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Instantly clean gigabytes of hidden app cache system-wide."
+                android:textColor="#94A3B8"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btnClearAllCache"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_btn_emerald"
+                android:text="🚀 CLEAR ALL APPS CACHE (1-CLICK)"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <!-- Selected Apps Header & Controls -->
         <LinearLayout
@@ -439,32 +526,45 @@
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
-            <Button
+            <TextView
                 android:id="@+id/btnSelectAll"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_chip"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
                 android:text="Select All"
                 android:textColor="#60A5FA"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:textStyle="bold" />
 
-            <Button
+            <TextView
                 android:id="@+id/btnDeselectAll"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="wrap_content"
-                android:layout_height="36dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_chip"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
                 android:text="Clear All"
                 android:textColor="#94A3B8"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <!-- Search Bar -->
         <EditText
             android:id="@+id/etSearchApp"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:layout_marginTop="6dp"
-            android:background="#1E293B"
+            android:layout_height="46dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_search_box"
             android:hint="🔍 Search apps (e.g. Chrome, WhatsApp)..."
             android:paddingHorizontal="14dp"
             android:textColor="#FFFFFF"
@@ -478,6 +578,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:layout_marginTop="20dp"
+            android:indeterminateTint="#3B82F6"
             android:visibility="gone" />
 
         <!-- Apps RecyclerView -->
@@ -488,6 +589,7 @@
             android:layout_marginTop="8dp"
             android:layout_weight="1"
             android:clipToPadding="false"
+            android:overScrollMode="never"
             android:paddingBottom="8dp" />
 
         <!-- Clear Selected Button -->
@@ -496,8 +598,9 @@
             android:layout_width="match_parent"
             android:layout_height="52dp"
             android:layout_marginTop="8dp"
-            android:backgroundTint="#3B82F6"
+            android:background="@drawable/bg_btn_primary"
             android:text="🗑️ Clear Selected Cache (0)"
+            android:textAllCaps="false"
             android:textColor="#FFFFFF"
             android:textSize="14sp"
             android:textStyle="bold" />

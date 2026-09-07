@@ -50,13 +50,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.5.1-release' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Vivo ToolMaster v1.5.1' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.5.2-release' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Vivo ToolMaster v1.5.2' }}
           body: |
-            ### 🚀 Vivo ToolMaster v1.5.1 (DevBanner Killer & Standalone Deep Cache Cleaner)
+            ### 🚀 Vivo ToolMaster v1.5.2 (Revamped Interactive UI, Hero Dashboard & Cache Tab Persistence)
 
-            #### ✨ What's New in v1.5.1:
-            - **🎨 Fixed Tab Switching UI:** Beautiful high-contrast segmented tabs for Dev Banner and Cache Cleaner (no more overlapping blue blob).
+            #### ✨ What's New in v1.5.2:
+            - **🎨 Hero Status Dashboard Card:** Live status badge (`● LIVE` / `○ PAUSED`), Dev Mode ON chip, USB Debug Active chip, and dynamic kill counter.
+            - **🔄 Cache Cleaner Tab Persistence Fix:** Stay on Deep Cache Cleaner tab seamlessly after automated cleaning finishes (fixed intent handling and tab state persistence).
+            - **⚙️ Auto-Kill Switch Sync Fix:** Rock-solid toggle state handling preventing switch desync or accidental re-activation on resume.
             - **⚡ 100% Verified Dev Banner Killer Engine:** Uses verified `pm clear com.vivo.daemonService` to eliminate the red status bar pill immediately while keeping Developer Options (`development_settings_enabled = 1`) and USB Debugging (`adb_enabled = 1`) 100% ACTIVE!
             - **🛡️ Dual Auto & Manual Modes:**
               - **Auto Mode:** Automatically purges the banner on app launch, on device boot, and in background via NotificationListenerService.

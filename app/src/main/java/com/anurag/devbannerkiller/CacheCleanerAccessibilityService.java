@@ -189,6 +189,7 @@ public class CacheCleanerAccessibilityService extends AccessibilityService {
 
         try {
             Intent intent = new Intent(this, MainActivity.class);
+            intent.putExtra("open_tab", "cache");
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         } catch (Exception e) {
